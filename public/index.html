@@ -834,9 +834,15 @@
 
     // Leaflet map init
     const map = L.map("map", { zoomControl:true, scrollWheelZoom:true, dragging:true });
+    // fallback Salvador (sempre)
+    map.setView([-12.9714, -38.5014], 12);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap"
+    }).addTo(map);
     window.__map = map;
 
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "" }).addTo(map);
 
     const portalsLayer = L.layerGroup().addTo(map);
 
@@ -1173,8 +1179,11 @@
       portalsIndex = new Map();
       const portalsArr = [];
       portals.forEach(p => {
-        if (p.latPortal == null || p.lngPortal == null) return;
-        const obj = { ...p, idPortal: String(p.idPortal) };
+        const lat = Number(p.latPortal);
+        const lng = Number(p.lngPortal);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+        const obj = { ...p, latPortal: lat, lngPortal: lng, idPortal: String(p.idPortal) };
+
         portalsIndex.set(obj.idPortal, obj);
         portalsArr.push(obj);
       });
@@ -1182,12 +1191,21 @@
       // KPIs
       updateInicioKPIs({ ...payload, intervalCounts, interval_counts: intervalCounts, portals: portalsArr });
 
-      // bounds inicial
-      if (!initializedBounds && portalsArr.length > 0){
-        const latlngs = portalsArr.map(p => L.latLng(p.latPortal, p.lngPortal));
-        map.fitBounds(L.latLngBounds(latlngs), { padding: [80, 80] });
-        initializedBounds = true;
+      // bounds inicial (só quando tiver portal válido)
+      if (!initializedBounds) {
+        const latlngs = portalsArr
+          .map(p => [Number(p.latPortal), Number(p.lngPortal)])
+          .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
+
+        if (latlngs.length > 0 && map) {
+          map.fitBounds(latlngs, { padding: [80, 80] });
+          initializedBounds = true;
+        } else if (map && !map.getCenter()) {
+          // fallback extra (quase nunca necessário se você já deu setView)
+          map.setView([-12.9714, -38.5014], 12);
+        }
       }
+
 
       // estado por portal
       const now = ts;
@@ -1208,44 +1226,53 @@
         ensurePortalCircle(portal);
       }
 
-      // normalização por max acc
-      let maxAcc = 0;
-      for (const portal of portalsArr){
-        const st = portalState.get(portal.idPortal);
-        maxAcc = Math.max(maxAcc, st?.acc ?? 0);
-      }
+      
+  // ===== escala do halo (condizente com o DB)
+  // O número "real" do banco para o mapa é o intervalo (últimos 5 min) -> intervalCounts[idPortal].
+  // A visualização usa normalização por max do ciclo para manter legível (escala relativa), mas
+  // respeita a proporção entre portais no mesmo ciclo.
+  let maxInterval = 0;
+  for (const portal of portalsArr){
+    const st = portalState.get(portal.idPortal);
+    const v = Number(st?.lastIntervalCount ?? 0);
+    if (Number.isFinite(v)) maxInterval = Math.max(maxInterval, v);
+  }
 
-      // update circles
-      for (const portal of portalsArr){
-        const st = portalState.get(portal.idPortal) || { acc: 0 };
-        let t = maxAcc > 0 ? (st.acc / maxAcc) : 0;
+  // update circles (baseado no intervalo)
+  for (const portal of portalsArr){
+    const st = portalState.get(portal.idPortal) || { lastIntervalCount: 0 };
+    const v = Number(st.lastIntervalCount ?? 0);
 
-        // boost dos baixos (mais visível)
-        t = Math.pow(clamp01(t), 0.55);
+    // t = 0..1 por portal no ciclo
+    let t = maxInterval > 0 ? (v / maxInterval) : 0;
 
-        const color = colorByIntensity(t);
-        const radiusOuter = lerp(CONFIG.R_MIN, CONFIG.R_MAX, t);
-        const radiusInner = Math.max(28, radiusOuter * 0.48);
+    // boost dos baixos (mais visível)
+    t = Math.pow(clamp01(t), 0.55);
 
-        const c = portalCircles.get(portal.idPortal);
-        if (c){
-          c.outer.setLatLng([portal.latPortal, portal.lngPortal]).setRadius(radiusOuter);
-          c.inner.setLatLng([portal.latPortal, portal.lngPortal]).setRadius(radiusInner);
+    const color = colorByIntensity(t);
+    const radiusOuter = lerp(CONFIG.R_MIN, CONFIG.R_MAX, t);
+    const radiusInner = Math.max(28, radiusOuter * 0.48);
 
-          // opacidades mais fortes (azul aparece)
-          c.outer.setStyle({ fillColor: color, fillOpacity: 0.30 + 0.35*t });
-          c.inner.setStyle({ fillColor: color, fillOpacity: 0.50 + 0.40*t });
-        }
-      }
+    const c = portalCircles.get(portal.idPortal);
+    if (c){
+      c.outer.setLatLng([portal.latPortal, portal.lngPortal]).setRadius(radiusOuter);
+      c.inner.setLatLng([portal.latPortal, portal.lngPortal]).setRadius(radiusInner);
 
-      // topbar last cycle
-      const dt2 = new Date(now);
-      document.getElementById("lastCycle").textContent = `${pad2(dt2.getHours())}:${pad2(dt2.getMinutes())}`;
+      // opacidades mais fortes (azul aparece)
+      c.outer.setStyle({ fillColor: color, fillOpacity: 0.30 + 0.35*t });
+      c.inner.setStyle({ fillColor: color, fillOpacity: 0.50 + 0.40*t });
     }
+  }
+
+  // topbar last cycle
+  const dt2 = new Date(now);
+  document.getElementById("lastCycle").textContent = `${pad2(dt2.getHours())}:${pad2(dt2.getMinutes())}`;
+}
 
     async function fetchSnapshot(){
-      const res = await fetch(CONFIG.API_ENDPOINT, { method:"GET" });
-      if (!res.ok) throw new Error("Falha ao buscar snapshot");
+      const res = await fetch(CONFIG.API_ENDPOINT, { cache: "no-store" });
+
+      if (!res.ok) throw new Error(`Snapshot HTTP ${res.status}`);
       return await res.json();
     }
 
@@ -1323,60 +1350,106 @@
 
   
     /* ======================
-       MODAL (expand cards)
-    ====================== */
-    const modal = document.getElementById("modal");
-    const modalContent = document.getElementById("modalContent");
-    const modalCloseBtn = document.getElementById("modalCloseBtn");
+   MODAL (expand cards)
+   - Event delegation (funciona para cards criados dinamicamente)
+   - Init após DOM pronto (o modal está depois do <script>)
+====================== */
+let modal, modalContent, modalCloseBtn;
 
-    function openModalFromCard(card){
-      if (!modal || !modalContent) return;
-      modalContent.innerHTML = "";
-      const clone = card.cloneNode(true);
-      clone.classList.remove("clickable");
-      // canvases não clonam desenho -> recria no modal
-      const canvases = clone.querySelectorAll("canvas");
-      canvases.forEach(cv => {
-        const id = cv.id;
-        const repl = document.createElement("canvas");
-        repl.id = id + "-modal";
-        repl.height = cv.getAttribute("height") || 200;
-        cv.replaceWith(repl);
-      });
-      modalContent.appendChild(clone);
-      modal.classList.add("open");
+function ensureModalRefs(){
+  if (modal && modalContent && modalCloseBtn) return true;
+  modal = document.getElementById("modal");
+  modalContent = document.getElementById("modalContent");
+  modalCloseBtn = document.getElementById("modalCloseBtn");
+  return Boolean(modal && modalContent && modalCloseBtn);
+}
 
-      // redesenha charts no modal
-      if (clone.querySelector("#chart-daily-modal") && LAST_DAILY){
-        drawGroupedBars(clone.querySelector("#chart-daily-modal"), LAST_DAILY.labels, LAST_DAILY.series);
-      }
-      if (clone.querySelector("#chart-peaks-modal") && LAST_PEAKS){
-        drawSimpleBars(clone.querySelector("#chart-peaks-modal"), LAST_PEAKS.labels, LAST_PEAKS.values);
-      }
+function openModalFromCard(card){
+  if (!ensureModalRefs()) return;
+
+  modalContent.innerHTML = "";
+
+  const clone = card.cloneNode(true);
+  clone.classList.remove("clickable");
+
+  // canvases não clonam desenho -> recria no modal
+  const canvases = clone.querySelectorAll("canvas");
+  canvases.forEach(cv => {
+    const id = cv.id;
+    const repl = document.createElement("canvas");
+    repl.id = id + "-modal";
+    repl.height = cv.getAttribute("height") || 200;
+    cv.replaceWith(repl);
+  });
+
+  modalContent.appendChild(clone);
+  modal.classList.add("open");
+
+  // redesenha charts no modal
+  const dailyCv = clone.querySelector("#chart-daily-modal");
+  if (dailyCv && LAST_DAILY){
+    drawGroupedBars(dailyCv, LAST_DAILY.labels, LAST_DAILY.series);
+  }
+  const peaksCv = clone.querySelector("#chart-peaks-modal");
+  if (peaksCv && LAST_PEAKS){
+    drawSimpleBars(peaksCv, LAST_PEAKS.labels, LAST_PEAKS.values);
+  }
+}
+
+function closeModal(){
+  if (!ensureModalRefs()) return;
+  modal.classList.remove("open");
+  modalContent.innerHTML = "";
+}
+
+function wireModal(){
+  if (!ensureModalRefs()) return;
+
+  modalCloseBtn.addEventListener("click", closeModal);
+  modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+
+  // Event delegation: qualquer .card.clickable abre modal
+  document.addEventListener("click", (e) => {
+    const card = e.target.closest(".card.clickable");
+    if (!card) return;
+
+    // Evita abrir modal ao clicar em controles Leaflet (caso você torne o mapa clicável depois)
+    if (card.querySelector("#map") && e.target.closest(".leaflet-control")) return;
+
+    openModalFromCard(card);
+  });
+}
+
+// Garante redraw de canvas ao redimensionar
+window.addEventListener("resize", () => { drawDailyChart(); drawPeaksChart(); });
+
+// Modal está no fim do body, então inicializa após DOM pronto
+if (document.readyState === "loading"){
+  document.addEventListener("DOMContentLoaded", wireModal);
+} else {
+  wireModal();
+}
+
+
+  async function refreshSnapshot() {
+    try {
+      const res = await fetch("/api/ssp/snapshot", { cache: "no-store" });
+      if (!res.ok) throw new Error(`snapshot ${res.status}`);
+      const payload = await res.json();
+      applySnapshot(payload);
+    } catch (err) {
+      console.warn("snapshot failed:", err);
+      // não mexe no map aqui
     }
+  }
 
-    function closeModal(){
-      if (!modal) return;
-      modal.classList.remove("open");
-      modalContent.innerHTML = "";
-    }
-
-    if (modalCloseBtn) modalCloseBtn.addEventListener("click", closeModal);
-    if (modal) modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
-    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
-
-    function wireInicioCards(){
-      const view = document.getElementById("view-inicio");
-      if (!view) return;
-      view.querySelectorAll(".clickable").forEach(card => {
-        card.addEventListener("click", () => openModalFromCard(card));
-      });
-    }
-
-    // Garante redraw de canvas ao redimensionar
-    window.addEventListener("resize", () => { drawDailyChart(); drawPeaksChart(); });
-
-    wireInicioCards();
+  // primeira carga (assim que abrir a página)
+  window.addEventListener("load", () => {
+    refreshSnapshot();
+    // atualiza a cada 30s (ajuste se quiser)
+    setInterval(refreshSnapshot, 30_000);
+  });
 
   </script>
 
