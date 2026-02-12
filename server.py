@@ -356,7 +356,7 @@ app.mount("/static", StaticFiles(directory="public"), name="static")
 
 @app.get("/")
 def index():
-    return FileResponse("public/novo.html")
+    return FileResponse("public/index.html")
 
 @app.get("/api/ssp/snapshot")
 def get_snapshot():
