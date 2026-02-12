@@ -1,0 +1,253 @@
+
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Acesso — Dashboard Carnaval</title>
+  <style>
+    :root{
+      --bg1:#060A12;
+      --bg2:#0A1326;
+      --card:#0B162D;
+      --stroke:rgba(255,255,255,.08);
+      --text:rgba(255,255,255,.92);
+      --muted:rgba(255,255,255,.65);
+      --accent:#19E3FF;
+      --danger:#ff4d4f;
+      --shadow:0 20px 60px rgba(0,0,0,.45);
+      --radius:18px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:var(--text);
+      background:
+        radial-gradient(1200px 700px at 20% 10%, rgba(25,227,255,.18), transparent 60%),
+        radial-gradient(900px 600px at 80% 80%, rgba(104,91,255,.16), transparent 55%),
+        linear-gradient(180deg, var(--bg1), var(--bg2));
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Helvetica Neue", Helvetica, sans-serif;
+    }
+    .wrap{
+      width:min(1100px, 92vw);
+      background:rgba(8,16,32,.62);
+      border:1px solid var(--stroke);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      overflow:hidden;
+      display:grid;
+      grid-template-columns: 1.05fr .95fr;
+      min-height: 560px;
+      backdrop-filter: blur(10px);
+    }
+    .left{
+      padding:42px 42px 34px;
+      border-right:1px solid var(--stroke);
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+      gap:18px;
+    }
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      margin-bottom:8px;
+    }
+    .dot{
+      width:12px;height:12px;border-radius:999px;background:var(--accent);
+      box-shadow:0 0 0 6px rgba(25,227,255,.14), 0 0 22px rgba(25,227,255,.45);
+    }
+    h1{
+      font-size:28px;
+      margin:0;
+      letter-spacing:.2px;
+    }
+    p{
+      margin:0;
+      color:var(--muted);
+      line-height:1.45;
+      max-width: 520px;
+    }
+    form{
+      margin-top:14px;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      max-width: 460px;
+    }
+    label{
+      font-size:12px;
+      color:var(--muted);
+      letter-spacing:.6px;
+      text-transform:uppercase;
+      margin-top:10px;
+    }
+    input{
+      width:100%;
+      padding:14px 14px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.10);
+      background:rgba(8,14,26,.7);
+      color:var(--text);
+      outline:none;
+      font-size:14px;
+    }
+    input:focus{
+      border-color: rgba(25,227,255,.55);
+      box-shadow: 0 0 0 4px rgba(25,227,255,.10);
+    }
+    .row{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      margin-top:16px;
+    }
+    button{
+      cursor:pointer;
+      border:none;
+      border-radius:12px;
+      padding:13px 16px;
+      background: linear-gradient(90deg, rgba(25,227,255,.9), rgba(104,91,255,.85));
+      color:#06101f;
+      font-weight:700;
+      letter-spacing:.2px;
+      min-width: 170px;
+    }
+    button:active{transform: translateY(1px)}
+    .msg{
+      min-height: 18px;
+      font-size: 13px;
+      color: var(--danger);
+      margin-top: 8px;
+    }
+
+    .right{
+      padding:30px;
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+      gap:14px;
+    }
+    .right h2{
+      margin:0 0 4px 0;
+      font-size:14px;
+      color:var(--muted);
+      letter-spacing:.6px;
+      text-transform:uppercase;
+    }
+    .grid{
+      display:grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap:14px;
+    }
+    .logo{
+      background: rgba(255,255,255,.04);
+      border:1px solid rgba(255,255,255,.09);
+      border-radius:16px;
+      height:110px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      overflow:hidden;
+      position:relative;
+    }
+    .logo img{
+      max-width:82%;
+      max-height:72%;
+      object-fit:contain;
+      filter: drop-shadow(0 10px 14px rgba(0,0,0,.35));
+    }
+    .hint{
+      color:rgba(255,255,255,.55);
+      font-size:12px;
+      line-height:1.4;
+      margin-top: 6px;
+    }
+
+    @media (max-width: 980px){
+      .wrap{grid-template-columns: 1fr; min-height:auto}
+      .left{border-right:none; border-bottom:1px solid var(--stroke)}
+      .right{padding-top:22px}
+      .logo{height:92px}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="left">
+      <div class="brand">
+        <div class="dot"></div>
+        <h1>Acesso ao Dashboard</h1>
+      </div>
+      <p>Informe suas credenciais para entrar. Por segurança, o painel só é liberado após autenticação válida.</p>
+
+      <form id="loginForm" autocomplete="off">
+        <label for="username">Login</label>
+        <input id="username" name="username" placeholder="Seu login" required />
+
+        <label for="password">Senha</label>
+        <input id="password" name="password" type="password" placeholder="Sua senha" required />
+
+        <div class="row">
+          <button type="submit">Entrar</button>
+          <div class="msg" id="msg"></div>
+        </div>
+      </form>
+
+      <div class="hint">O acesso é exclusivo para usuários credenciados da SSP-BA. Sistema feito pela Hive Computer Vision </code>.</div>
+    </section>
+
+    <section class="right">
+      <h2>Clientes / Parceiros</h2>
+      <div class="grid">
+        <div class="logo"><img src="/static/logos/logo1.png" alt="Logo 1"></div>
+        <div class="logo"><img src="/static/logos/logo2.png" alt="Logo 2"></div>
+        <div class="logo"><img src="/static/logos/logo3.png" alt="Logo 3"></div>
+        <div class="logo"><img src="/static/logos/logo4.png" alt="Logo 4"></div>
+        <div class="logo"><img src="/static/logos/logo5.png" alt="Logo 5"></div>
+        <div class="logo"><img src="/static/logos/logo6.png" alt="Logo 6"></div>
+        <div class="logo"><img src="/static/logos/logo7.png" alt="Logo 7"></div>
+        <div class="logo"><img src="/static/logos/logo8.png" alt="Logo 8"></div>
+        <div class="logo"><img src="/static/logos/logo9.png" alt="Logo 9"></div>
+      </div>
+      <div class="hint">Você pode trocar os arquivos (mantendo os nomes) para personalizar por cliente sem mexer no código.</div>
+    </section>
+  </div>
+
+  <script>
+    const form = document.getElementById("loginForm");
+    const msg = document.getElementById("msg");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      msg.textContent = "";
+
+      const username = document.getElementById("username").value.trim();
+      const password = document.getElementById("password").value.trim();
+
+      try{
+        const res = await fetch("/api/login", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({ username, password })
+        });
+
+        if(res.ok){
+          window.location.href = "/";
+          return;
+        }
+
+        const data = await res.json().catch(() => ({}));
+        msg.textContent = (data && (data.detail || data.error)) ? (data.detail || data.error) : "Login ou senha inválidos.";
+      }catch(err){
+        msg.textContent = "Falha de rede ao autenticar.";
+      }
+    });
+  </script>
+</body>
+</html>
