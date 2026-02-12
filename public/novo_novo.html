@@ -1,0 +1,1392 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Carnaval — SSP-BA — Hive</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    :root{
+      --bg0:#070A12;
+      --bg1:#0A0F1D;
+
+      --text: rgba(255,255,255,.92);
+      --muted: rgba(255,255,255,.62);
+      --muted2: rgba(255,255,255,.44);
+
+      --card: rgba(0,0,0,.34);
+      --card2: rgba(0,0,0,.22);
+      --border: rgba(255,255,255,.10);
+
+      --shadow: 0 18px 55px rgba(0,0,0,.52);
+      --radius: 18px;
+      --radius2: 22px;
+
+      --tagGreen:#36D47E;
+      --tagBlue:#4aa3ff;
+      --tagAmber:#f5b940;
+      --tagRed:#ff5c6c;
+
+      --topbar-h: 70px;
+      --gap: 14px;
+    }
+
+    *{ box-sizing:border-box; }
+    html, body{ height:100%; }
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      color: var(--text);
+      background:
+        radial-gradient(1200px 700px at 18% -10%, rgba(76,199,255,.11), transparent 58%),
+        radial-gradient(900px 650px at 78% 0%, rgba(147,88,255,.09), transparent 58%),
+        radial-gradient(900px 650px at 60% 110%, rgba(54,212,126,.06), transparent 60%),
+        linear-gradient(180deg, var(--bg1), var(--bg0));
+      overflow: hidden;
+    }
+
+    .app{ height:100%; display:flex; flex-direction:column; }
+
+    /* ===== TOPBAR ===== */
+    .topbar{
+      height: var(--topbar-h);
+      padding: 0 18px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      background: linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,.02));
+      backdrop-filter: blur(10px);
+      gap: 14px;
+    }
+
+    .top-left{
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+      min-width: 420px;
+    }
+    .title{ font-weight: 800; font-size: 16px; letter-spacing: .01em; }
+    .subtitle{ font-size: 12px; color: var(--muted2); }
+
+    .tabs{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      padding: 6px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.18);
+      backdrop-filter: blur(10px);
+    }
+    .tab{
+      cursor:pointer;
+      user-select:none;
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 800;
+      color: rgba(255,255,255,.62);
+      border: 1px solid transparent;
+      transition: all .14s ease;
+      white-space: nowrap;
+    }
+    .tab:hover{ color: rgba(255,255,255,.82); }
+    .tab.active{
+      color: rgba(255,255,255,.92);
+      border-color: rgba(255,255,255,.14);
+      background: radial-gradient(700px 220px at 20% 0%, rgba(76,199,255,.12), transparent 55%),
+                  rgba(255,255,255,.05);
+      box-shadow: 0 10px 30px rgba(0,0,0,.30);
+    }
+
+    .top-right{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      min-width: 520px;
+      justify-content:flex-end;
+    }
+
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.18);
+      color: rgba(255,255,255,.76);
+      font-size: 12px;
+      white-space: nowrap;
+      backdrop-filter: blur(8px);
+    }
+    .dot{
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--tagGreen);
+      box-shadow: 0 0 0 5px rgba(54,212,126,.16);
+    }
+    .pill strong{ font-weight: 850; color: rgba(255,255,255,.90); }
+
+    /* ===== CONTENT ===== */
+    .content{
+      height: calc(100% - var(--topbar-h));
+      padding: 14px;
+      overflow:hidden;
+    }
+
+    .view{ height:100%; display:none; }
+    .view.active{ display:block; }
+
+    /* ===== INÍCIO LAYOUT (split 50/50) ===== */
+    .split{
+      height: 100%;
+      display:grid;
+      grid-template-columns: 1.05fr 1.25fr; /* indicadores um pouco menor */
+      gap: var(--gap);
+      min-height: 0;
+    }
+
+    /* LEFT PANEL */
+    .leftPanel{
+      min-height: 0;
+      display:grid;
+      grid-template-rows: auto auto auto;
+      gap: var(--gap);
+    }
+
+    .grid6{
+      display:grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: var(--gap);
+    }
+
+    .charts2{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--gap);
+      min-height: 0;
+    }
+
+    .ranking{
+      min-height: 0;
+    }
+
+    /* Card style */
+    .card{
+      border-radius: var(--radius2);
+      border: 1px solid var(--border);
+      background:
+        radial-gradient(900px 220px at 20% 0%, rgba(76,199,255,.10), transparent 55%),
+        rgba(0,0,0,.34);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+      overflow:hidden;
+      min-height: 0;
+    }
+    .cardHeader{
+      padding: 12px 12px 10px;
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap: 10px;
+    }
+    .cardTitle{
+      font-size: 12px;
+      font-weight: 850;
+      color: rgba(255,255,255,.86);
+      letter-spacing:.01em;
+    }
+    .cardSub{
+      margin-top: 4px;
+      font-size: 11px;
+      color: var(--muted2);
+    }
+    .tag{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 850;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(0,0,0,.18);
+      color: rgba(255,255,255,.80);
+      white-space: nowrap;
+    }
+    .tagDot{ width:8px; height:8px; border-radius:50%; }
+    .tag.blue .tagDot{ background: var(--tagBlue); box-shadow: 0 0 0 5px rgba(74,163,255,.14); }
+    .tag.green .tagDot{ background: var(--tagGreen); box-shadow: 0 0 0 5px rgba(54,212,126,.14); }
+    .tag.amber .tagDot{ background: var(--tagAmber); box-shadow: 0 0 0 5px rgba(245,185,64,.14); }
+    .tag.red .tagDot{ background: var(--tagRed); box-shadow: 0 0 0 5px rgba(255,92,108,.14); }
+
+    .cardBody{
+      padding: 0 12px 12px;
+      min-height: 0;
+    }
+
+    /* KPI card inner */
+    .kpiValue{
+      font-size: 34px;
+      font-weight: 900;
+      letter-spacing: .01em;
+      margin: 2px 0 4px;
+    }
+    .kpiHint{
+      font-size: 11px;
+      color: var(--muted2);
+      margin-bottom: 10px;
+    }
+    .spark{
+      height: 26px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.08);
+      overflow:hidden;
+      position: relative;
+    }
+    .spark::after{
+      content:"";
+      position:absolute; inset:0;
+      background: linear-gradient(90deg, rgba(74,163,255,.0), rgba(74,163,255,.55), rgba(74,163,255,.0));
+      transform: translateX(-60%);
+      animation: sweep 3.2s ease-in-out infinite;
+      opacity:.55;
+    }
+    @keyframes sweep{
+      0%{ transform: translateX(-60%); }
+      50%{ transform: translateX(60%); }
+      100%{ transform: translateX(-60%); }
+    }
+
+    /* Chart placeholders (visual containers ready) */
+    .chartBox{
+      height: 220px;
+      border-radius: var(--radius);
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.18);
+      position: relative;
+      overflow:hidden;
+    }
+    .chartBox::after{
+      content:"";
+      position:absolute; inset:0;
+      background:
+        linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px) 0 0 / 28px 28px,
+        linear-gradient(0deg, rgba(255,255,255,.04) 1px, transparent 1px) 0 0 / 28px 28px;
+      opacity:.55;
+      pointer-events:none;
+    }
+
+    .rankBox{
+      height: 170px;
+      border-radius: var(--radius);
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.18);
+      overflow:hidden;
+      position: relative;
+    }
+
+    /* RIGHT PANEL (map) */
+    .mapCard{
+      height: 100%;
+      display:flex;
+      flex-direction:column;
+      min-height: 0;
+    }
+
+    .mapTop{
+      padding: 12px 12px 10px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 10px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+
+    #map{
+      flex:1;
+      min-height: 0;
+      width:100%;
+      border-radius: 0 0 var(--radius2) var(--radius2);
+      background: rgba(0,0,0,.18);
+    }
+
+    /* Leaflet tooltip premium */
+    .leaflet-tooltip{
+      background: rgba(0,0,0,.70) !important;
+      border: 1px solid rgba(255,255,255,.14) !important;
+      color: rgba(255,255,255,.90) !important;
+      border-radius: 12px !important;
+      padding: 10px 10px !important;
+      box-shadow: var(--shadow) !important;
+      backdrop-filter: blur(10px);
+      font-size: 12px;
+    }
+    .leaflet-tooltip-top:before,
+    .leaflet-tooltip-bottom:before,
+    .leaflet-tooltip-left:before,
+    .leaflet-tooltip-right:before{ border: none !important; }
+
+    .tt-title{ font-weight: 900; margin-bottom: 6px; }
+    .tt-row{ display:flex; justify-content:space-between; gap:14px; }
+    .tt-key{ color: rgba(255,255,255,.70); }
+    .tt-val{ font-weight: 900; }
+    .tt-sub{ margin-top: 8px; color: rgba(255,255,255,.55); font-size: 11px; }
+
+    /* Other tabs base */
+    .simpleCard{
+      height: 100%;
+      display:flex;
+      flex-direction:column;
+      gap: var(--gap);
+    }
+    .pad{
+      padding: 16px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .camera-zones-grid{
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+    gap: 16px;
+    }
+
+    .zone-card{
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,.12);
+    background: rgba(0,0,0,.35);
+    box-shadow: 0 12px 40px rgba(0,0,0,.45);
+    padding: 14px;
+    }
+
+    .zone-title{
+    font-size: 14px;
+    font-weight: 900;
+    margin-bottom: 12px;
+    color: rgba(255,255,255,.9);
+    }
+
+    .zone-cameras{
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    }
+
+    .camera-card{
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,.12);
+    background: rgba(0,0,0,.25);
+    }
+
+    .camera-card img{
+    width: 100%;
+    height: 140px;
+    object-fit: cover;
+    display: block;
+    }
+
+    .camera-info{
+    padding: 8px 10px;
+    }
+
+    .camera-name{
+    font-size: 12px;
+    font-weight: 800;
+    }
+
+    .camera-meta{
+    font-size: 11px;
+    color: rgba(255,255,255,.55);
+    }
+
+  
+    /* ===== INÍCIO (novo) ===== */
+    .grid3{ display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:14px; margin-bottom:14px; }
+    .grid2{ display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:14px; margin-bottom:14px; }
+    .card.wide{ min-height: 240px; }
+    .card.tall{ min-height: 220px; }
+    .clickable{ cursor: pointer; }
+    .clickable:hover{ transform: translateY(-1px); box-shadow: 0 14px 40px rgba(0,0,0,.45); }
+
+    .splitNumbers{ display:flex; gap:10px; align-items:stretch; }
+    .miniBox{
+      flex:1; padding:12px 12px; border-radius:14px;
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.10);
+    }
+    .miniBox.ok{ border-color: rgba(46, 204, 113, .30); }
+    .miniBox.bad{ border-color: rgba(231, 76, 60, .30); }
+    .miniLabel{ font-size:12px; color: var(--muted); }
+    .miniValue{ margin-top:6px; font-size:28px; font-weight:800; letter-spacing:.2px; }
+    .miniBox.ok .miniValue{ color: rgba(46, 204, 113, .95); }
+    .miniBox.bad .miniValue{ color: rgba(231, 76, 60, .95); }
+
+    .alertsBox{
+      height: 140px;
+      overflow: auto;
+      padding: 12px 12px;
+      border-radius: 14px;
+      background: rgba(0,0,0,.20);
+      border: 1px solid rgba(255,255,255,.10);
+      color: rgba(255,255,255,.86);
+      line-height: 1.4;
+      font-size: 13px;
+      white-space: pre-line;
+    }
+
+    canvas{ width:100%; display:block; }
+
+    /* ===== MODAL ===== */
+    .modalOverlay{
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.62);
+      backdrop-filter: blur(6px);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      z-index: 9999;
+      padding: 18px;
+    }
+    .modalOverlay.open{ display:flex; }
+    .modalBox{
+      width: min(1180px, 96vw);
+      max-height: 92vh;
+      overflow:auto;
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(18,25,45,.96), rgba(10,12,20,.96));
+      border: 1px solid rgba(255,255,255,.12);
+      box-shadow: 0 24px 80px rgba(0,0,0,.65);
+      padding: 16px;
+      position: relative;
+    }
+    .modalClose{
+      position: sticky;
+      top: 0;
+      display:flex;
+      justify-content:flex-end;
+      margin-bottom: 8px;
+      z-index: 2;
+    }
+    .modalClose button{
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);
+      color: rgba(255,255,255,.86);
+      padding: 8px 10px;
+      border-radius: 12px;
+      cursor: pointer;
+    }
+    .modalContent .card{ transform:none !important; box-shadow:none !important; }
+    .modalContent .card:hover{ transform:none !important; box-shadow:none !important; }
+
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="top-left">
+        <div class="title">Carnaval — SSP-BA — Megan Inteligência Artificial — Hive Computer Vision</div>
+        <div class="subtitle">Dashboard em tempo real • atualização automática (SSP: Portais / Fluxo)</div>
+      </div>
+
+      <nav class="tabs" id="tabs">
+        <div class="tab active" data-view="inicio">INÍCIO</div>
+        <div class="tab" data-view="ocorrencias">OCORRÊNCIAS</div>
+        <div class="tab" data-view="zonas">ZONAS</div>
+        <div class="tab" data-view="cameras">CÂMERAS</div>
+        <div class="tab" data-view="relatorios">RELATÓRIOS</div>
+      </nav>
+
+      <div class="top-right">
+        <div class="pill">
+          <span class="dot"></span>
+          <span><strong>Atualização</strong> OK</span>
+        </div>
+        <div class="pill">
+          <span>Último ciclo: <strong id="lastCycle">—</strong></span>
+        </div>
+        <div class="pill">
+          <span id="clock">—</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="content">
+      <!-- ===== VIEW: INÍCIO ===== -->
+      <section class="view active" id="view-inicio">
+        <div class="split">
+          <!-- LEFT: INDICADORES (INÍCIO) -->
+          <div class="leftPanel">
+            <!-- Linha 1: Circuitos (AGORA) -->
+            <div class="grid3">
+              <div class="card clickable" data-expand="circuit-osmar">
+                <div class="cardHeader">
+                  <div>
+                    <div class="cardTitle">Circuito Osmar</div>
+                    <div class="cardSub">Pessoas agora (últimos 5 min)</div>
+                  </div>
+                  <div class="tag blue"><span class="tagDot"></span><span>AGORA</span></div>
+                </div>
+                <div class="cardBody">
+                  <div class="kpiValue" id="kpi-osmar-now">0</div>
+                  <div class="kpiHint">Soma dos portais do circuito</div>
+                  <div class="spark"></div>
+                </div>
+              </div>
+
+              <div class="card clickable" data-expand="circuit-dodo">
+                <div class="cardHeader">
+                  <div>
+                    <div class="cardTitle">Circuito Dodô</div>
+                    <div class="cardSub">Pessoas agora (últimos 5 min)</div>
+                  </div>
+                  <div class="tag blue"><span class="tagDot"></span><span>AGORA</span></div>
+                </div>
+                <div class="cardBody">
+                  <div class="kpiValue" id="kpi-dodo-now">0</div>
+                  <div class="kpiHint">Soma dos portais do circuito</div>
+                  <div class="spark"></div>
+                </div>
+              </div>
+
+              <div class="card clickable" data-expand="circuit-batatinha">
+                <div class="cardHeader">
+                  <div>
+                    <div class="cardTitle">Circuito Batatinha</div>
+                    <div class="cardSub">Pessoas agora (últimos 5 min)</div>
+                  </div>
+                  <div class="tag blue"><span class="tagDot"></span><span>AGORA</span></div>
+                </div>
+                <div class="cardBody">
+                  <div class="kpiValue" id="kpi-batatinha-now">0</div>
+                  <div class="kpiHint">Soma dos portais do circuito</div>
+                  <div class="spark"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Linha 2: Totais + Portais -->
+            <div class="grid3">
+              <div class="card clickable" data-expand="total-hoje">
+                <div class="cardHeader">
+                  <div>
+                    <div class="cardTitle">Total geral hoje</div>
+                    <div class="cardSub">Somatório dos 3 circuitos (dia)</div>
+                  </div>
+                  <div class="tag green"><span class="tagDot"></span><span>HOJE</span></div>
+                </div>
+                <div class="cardBody">
+                  <div class="kpiValue" id="kpi-total-hoje">0</div>
+                  <div class="kpiHint">Atualizado via histórico local</div>
+                  <div class="spark"></div>
+                </div>
+              </div>
+
+              <div class="card clickable" data-expand="total-carnaval">
+                <div class="cardHeader">
+                  <div>
+                    <div class="cardTitle">Total geral Carnaval 2026</div>
+                    <div class="cardSub">Somatório de todos os dias</div>
+                  </div>
+                  <div class="tag yellow"><span class="tagDot"></span><span>ACUM</span></div>
+                </div>
+                <div class="cardBody">
+                  <div class="kpiValue" id="kpi-total-carnaval">0</div>
+                  <div class="kpiHint">Acumulado (JSONL)</div>
+                  <div class="spark"></div>
+                </div>
+              </div>
+
+              <div class="card clickable" data-expand="portais-status">
+                <div class="cardHeader">
+                  <div>
+                    <div class="cardTitle">Portais</div>
+                    <div class="cardSub">Ativos x Desativados</div>
+                  </div>
+                  <div class="tag purple"><span class="tagDot"></span><span>STATUS</span></div>
+                </div>
+                <div class="cardBody">
+                  <div class="splitNumbers">
+                    <div class="miniBox ok">
+                      <div class="miniLabel">Ativos</div>
+                      <div class="miniValue" id="kpi-portais-on">0</div>
+                    </div>
+                    <div class="miniBox bad">
+                      <div class="miniLabel">Off</div>
+                      <div class="miniValue" id="kpi-portais-off">0</div>
+                    </div>
+                  </div>
+                  <div class="kpiHint">Ativo = coord + fluxo no intervalo</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Linha 3: Gráficos -->
+            <div class="grid2">
+              <div class="card wide clickable" data-expand="chart-daily">
+                <div class="cardHeader">
+                  <div>
+                    <div class="cardTitle">Pessoas por dia (12 → 17 fev)</div>
+                    <div class="cardSub">Osmar, Dodô e Batatinha</div>
+                  </div>
+                  <div class="tag green"><span class="tagDot"></span><span>DIÁRIO</span></div>
+                </div>
+                <div class="cardBody">
+                  <canvas id="chart-daily" height="180"></canvas>
+                </div>
+              </div>
+
+              <div class="card wide clickable" data-expand="chart-peaks">
+                <div class="cardHeader">
+                  <div>
+                    <div class="cardTitle">Picos por circuito</div>
+                    <div class="cardSub">Maior dia registrado (por circuito)</div>
+                  </div>
+                  <div class="tag blue"><span class="tagDot"></span><span>PICOS</span></div>
+                </div>
+                <div class="cardBody">
+                  <canvas id="chart-peaks" height="180"></canvas>
+                </div>
+              </div>
+            </div>
+
+            <!-- Linha 4: Alertas -->
+            <div class="card tall clickable" data-expand="alerts">
+              <div class="cardHeader">
+                <div>
+                  <div class="cardTitle">Alertas (resumo)</div>
+                  <div class="cardSub">Sintético • operacional</div>
+                </div>
+                <div class="tag red"><span class="tagDot"></span><span>ALERTA</span></div>
+              </div>
+              <div class="cardBody">
+                <div class="alertsBox" id="alerts-text">—</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- RIGHT: MAPA -->
+          <div class="rightPanel">
+            <div class="card mapCard">
+              <div class="cardHeader">
+                <div>
+                  <div class="cardTitle">Mapa Interativo (SSP)</div>
+                  <div class="cardSub">Portais como pontos • halo cresce/encolhe com fluxo</div>
+                </div>
+                <div class="tag blue"><span class="tagDot"></span><span>ZOOM</span></div>
+              </div>
+              <div id="map"></div>
+            </div>
+          </div>
+        </div>
+<section class="view" id="view-ocorrencias">
+        <div class="card simpleCard">
+          <div class="cardHeader">
+            <div>
+              <div class="cardTitle">Ocorrências</div>
+              <div class="cardSub">Estrutura pronta para SSP (eventos/alertas)</div>
+            </div>
+            <div class="tag red"><span class="tagDot"></span><span>SSP</span></div>
+          </div>
+          <div class="pad">
+            Tela pronta para receber listagem, filtros, severidade e timeline.
+            (Sem dados ainda — só estrutura visual.)
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== VIEW: ZONAS ===== -->
+      <section class="view" id="view-zonas">
+        <div class="card simpleCard">
+          <div class="cardHeader">
+            <div>
+              <div class="cardTitle">Zonas</div>
+              <div class="cardSub">Por enquanto: SSP (portais). SALTUR (polígonos) entra depois.</div>
+            </div>
+            <div class="tag amber"><span class="tagDot"></span><span>EM BREVE</span></div>
+          </div>
+          <div class="pad">
+            Aqui vamos encaixar o dashboard da SALTUR (polígonos por câmera) depois.
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== VIEW: CÂMERAS ===== -->
+      <section class="view" id="view-cameras">
+        <div id="camera-zones-grid" class="camera-zones-grid"></div>
+      </section>
+
+
+      <!-- ===== VIEW: RELATÓRIOS ===== -->
+      <section class="view" id="view-relatorios">
+        <div class="card simpleCard">
+          <div class="cardHeader">
+            <div>
+              <div class="cardTitle">Relatórios</div>
+              <div class="cardSub">Exportações e replay do histórico (JSONL)</div>
+            </div>
+            <div class="tag blue"><span class="tagDot"></span><span>HISTÓRICO</span></div>
+          </div>
+          <div class="pad">
+            Aqui a gente conecta leitura do histórico salvo pelo server (data/history-ssp.jsonl) e gera export.
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script>
+    /* ======================
+       TAB NAV
+    ====================== */
+    const tabs = document.getElementById("tabs");
+    const tabEls = Array.from(tabs.querySelectorAll(".tab"));
+
+    function activateTab(key){
+      tabEls.forEach(t => t.classList.toggle("active", t.dataset.view === key));
+      document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+      const view = document.getElementById(`view-${key}`);
+      if (view) view.classList.add("active");
+
+      // Leaflet precisa recalcular tamanho quando sai/volta
+      if (key === "inicio" && window.__map){
+        setTimeout(() => window.__map.invalidateSize(), 120);
+      }
+      if (key === "cameras") {
+        loadCameras();
+      }
+
+    }
+
+    tabs.addEventListener("click", (e) => {
+      const t = e.target.closest(".tab");
+      if (!t) return;
+      activateTab(t.dataset.view);
+    });
+
+    /* ======================
+       CLOCK
+    ====================== */
+    function pad2(n){ return String(n).padStart(2, "0"); }
+    function tickClock(){
+      const now = new Date();
+      const d = `${pad2(now.getDate())}/${pad2(now.getMonth()+1)}/${now.getFullYear()}`;
+      const t = `${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}`;
+      document.getElementById("clock").textContent = `${d} ${t}`;
+    }
+    tickClock();
+    setInterval(tickClock, 1000);
+
+    /* ======================
+       SSP MAP (circular halos)
+       Data from: GET /api/ssp/snapshot
+    ====================== */
+    const CONFIG = {
+      API_ENDPOINT: "/api/ssp/snapshot",
+      UPDATE_INTERVAL_MS: 5 * 60 * 1000,
+      HALF_LIFE_MINUTES: 20,
+      R_MIN: 60,
+      R_MAX: 420,
+      CRITICAL_THRESHOLD_5MIN: 900 // ajuste interno: portal crítico se >= isso no intervalo
+    };
+
+    function clamp01(x){ return Math.max(0, Math.min(1, x)); }
+    function lerp(a,b,t){ return a + (b-a)*t; }
+
+    function hexToRgb(hex){
+      const h = hex.replace("#","").trim();
+      return { r: parseInt(h.slice(0,2),16), g: parseInt(h.slice(2,4),16), b: parseInt(h.slice(4,6),16) };
+    }
+    function rgbToHex(r,g,b){
+      const to = (v)=> v.toString(16).padStart(2,"0");
+      return `#${to(r)}${to(g)}${to(b)}`;
+    }
+    function lerpColor(c1, c2, t){
+      const a = hexToRgb(c1), b = hexToRgb(c2);
+      const r = Math.round(lerp(a.r,b.r,t));
+      const g = Math.round(lerp(a.g,b.g,t));
+      const bb = Math.round(lerp(a.b,b.b,t));
+      return rgbToHex(r,g,bb);
+    }
+    function colorByIntensity(t){
+      t = clamp01(t);
+      if (t < 0.25) return lerpColor("#3b7bff", "#00e5ff", t/0.25);
+      if (t < 0.55) return lerpColor("#00e5ff", "#00e39a", (t-0.25)/0.30);
+      if (t < 0.75) return lerpColor("#00e39a", "#f5b940", (t-0.55)/0.20);
+      return lerpColor("#f5b940", "#ff5c6c", (t-0.75)/0.25);
+    }
+
+    function decayFactor(dtMs){
+      const dtMin = dtMs / 60000;
+      return Math.pow(0.5, dtMin / CONFIG.HALF_LIFE_MINUTES);
+    }
+
+    // Leaflet map init
+    const map = L.map("map", { zoomControl:true, scrollWheelZoom:true, dragging:true });
+    window.__map = map;
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "" }).addTo(map);
+
+    const portalsLayer = L.layerGroup().addTo(map);
+
+    const portalState = new Map();   // idPortal -> {acc,lastTs,lastIntervalCount,lastIntervalTs}
+    const portalCircles = new Map(); // idPortal -> {outer,inner}
+    let portalsIndex = new Map();
+    let initializedBounds = false;
+
+    function tooltipHTML(portal){
+      const st = portalState.get(portal.idPortal);
+      const lastTs = st?.lastIntervalTs ? new Date(st.lastIntervalTs) : null;
+      const tstr = lastTs ? `${pad2(lastTs.getHours())}:${pad2(lastTs.getMinutes())}` : "—";
+
+      const intervalCount = Number(st?.lastIntervalCount ?? 0);
+      const acc = Number(st?.acc ?? 0);
+
+      return `
+        <div class="tt-title">${portal.nomePortal ?? "Portal"} <span style="opacity:.7;">(#${portal.idPortal})</span></div>
+        <div class="tt-row"><div class="tt-key">Últimos 5 min</div><div class="tt-val">${intervalCount.toLocaleString("pt-BR")}</div></div>
+        <div class="tt-row"><div class="tt-key">Acumulado (c/ decaimento)</div><div class="tt-val">${Math.round(acc).toLocaleString("pt-BR")}</div></div>
+        <div class="tt-sub">Ciclo do intervalo: <strong>${tstr}</strong></div>
+      `;
+    }
+
+    function ensurePortalCircle(portal){
+      if (portalCircles.has(portal.idPortal)) return;
+
+      const outer = L.circle([portal.latPortal, portal.lngPortal], {
+        radius: CONFIG.R_MIN,
+        weight: 0,
+        fillColor: "#3b7bff",
+        fillOpacity: 0.30
+      }).addTo(portalsLayer);
+
+      const inner = L.circle([portal.latPortal, portal.lngPortal], {
+        radius: Math.max(28, CONFIG.R_MIN * 0.45),
+        weight: 0,
+        fillColor: "#3b7bff",
+        fillOpacity: 0.55
+      }).addTo(portalsLayer);
+
+      outer.bindTooltip("", { sticky: true, direction: "top", opacity: 1 });
+      inner.bindTooltip("", { sticky: true, direction: "top", opacity: 1 });
+
+      outer.on("mouseover", () => outer.setTooltipContent(tooltipHTML(portal)));
+      inner.on("mouseover", () => inner.setTooltipContent(tooltipHTML(portal)));
+
+      portalCircles.set(portal.idPortal, { outer, inner });
+    }
+
+    // ===== KPI update helpers =====
+    function setText(id, v){ const el = document.getElementById(id); if (el) el.textContent = v; }
+
+    
+    // ===== INÍCIO (novo): KPIs + gráficos + alertas =====
+    const EVENT_DAYS = [
+      "2026-02-12","2026-02-13","2026-02-14","2026-02-15","2026-02-16","2026-02-17"
+    ];
+    let LAST_DAILY = null; // {labels:[], series:{osmar:[], dodo:[], batatinha:[]}}
+    let LAST_PEAKS = null; // {labels:[], values:[]}
+
+    function circuitOfPortal(p){
+      const v = (p.circuito ?? p.circuit ?? p.circuitoPortal ?? p.circuit_name ?? "").toString().toLowerCase();
+      if (v.includes("osmar")) return "osmar";
+      if (v.includes("dod")) return "dodo";
+      if (v.includes("batat")) return "batatinha";
+      return null;
+    }
+
+    function updateInicioKPIs(payload){
+      const portalsArr = payload.portals ?? [];
+      const intervalCounts = payload.interval_counts ?? payload.intervalCounts ?? {};
+
+      // "Agora" por circuito = soma do intervalo (últimos 5 min) dos portais do circuito
+      const now = { osmar:0, dodo:0, batatinha:0 };
+      let active = 0;
+      let inactive = 0;
+
+      for (const p of portalsArr){
+        const id = p.idPortal ?? p.id ?? p.portal_id;
+        const v = Number(intervalCounts[id] ?? 0);
+        const c = circuitOfPortal(p);
+
+        if (c && Number.isFinite(v)) now[c] += v;
+
+        // ativo/off: heurística simples (coord ok + teve leitura no intervalo)
+        const hasCoord = Number.isFinite(Number(p.latPortal)) && Number.isFinite(Number(p.lngPortal));
+        const isActive = hasCoord && v > 0;
+        if (isActive) active += 1; else inactive += 1;
+      }
+
+      setText("kpi-osmar-now", now.osmar.toLocaleString("pt-BR"));
+      setText("kpi-dodo-now", now.dodo.toLocaleString("pt-BR"));
+      setText("kpi-batatinha-now", now.batatinha.toLocaleString("pt-BR"));
+
+      // Totais (preferencialmente vindos da API/histórico no server)
+      const totals = payload.totals ?? payload.aggregates ?? {};
+      const totalHoje = Number(totals.total_hoje ?? totals.totalHoje ?? 0);
+      const totalCarnaval = Number(totals.total_carnaval ?? totals.totalCarnaval ?? 0);
+
+      setText("kpi-total-hoje", (Number.isFinite(totalHoje) ? totalHoje : 0).toLocaleString("pt-BR"));
+      setText("kpi-total-carnaval", (Number.isFinite(totalCarnaval) ? totalCarnaval : 0).toLocaleString("pt-BR"));
+
+      setText("kpi-portais-on", active.toLocaleString("pt-BR"));
+      setText("kpi-portais-off", inactive.toLocaleString("pt-BR"));
+
+      // Alertas (texto pronto vindo do server, ou fallback)
+      const alerts = payload.alerts_summary ?? payload.alertsSummary ?? payload.alerts_text ?? null;
+      if (alerts){
+        document.getElementById("alerts-text").textContent = alerts;
+      } else {
+        const lines = [];
+        if (active === 0) lines.push("Nenhum portal ativo no intervalo atual.");
+        if (inactive > 0) lines.push(`Portais sem leitura no intervalo: ${inactive}.`);
+        document.getElementById("alerts-text").textContent = lines.length ? lines.join("") : "OK";
+      }
+
+      // Dados diários (vêm do server via histórico local; se não vier, desenha vazio)
+      const daily = payload.daily ?? payload.daily_by_circuit ?? payload.dailyByCircuit ?? null;
+      if (daily){
+        // Esperado: {labels:[...], osmar:[...], dodo:[...], batatinha:[...]}
+        LAST_DAILY = {
+          labels: daily.labels ?? EVENT_DAYS,
+          series: {
+            osmar: daily.osmar ?? [],
+            dodo: daily.dodo ?? [],
+            batatinha: daily.batatinha ?? []
+          }
+        };
+      } else if (!LAST_DAILY){
+        LAST_DAILY = { labels: EVENT_DAYS, series: { osmar:[], dodo:[], batatinha:[] } };
+      }
+
+      // Picos por circuito (preferencialmente vindo do server; senão calcula do daily)
+      const peaks = payload.peaks ?? payload.peaks_by_circuit ?? payload.peaksByCircuit ?? null;
+      if (peaks){
+        LAST_PEAKS = { labels: ["Osmar","Dodô","Batatinha"], values: [peaks.osmar||0, peaks.dodo||0, peaks.batatinha||0] };
+      } else {
+        const s = LAST_DAILY?.series;
+        if (s){
+          LAST_PEAKS = {
+            labels: ["Osmar","Dodô","Batatinha"],
+            values: [
+              Math.max(0, ...(s.osmar||[])),
+              Math.max(0, ...(s.dodo||[])),
+              Math.max(0, ...(s.batatinha||[])),
+            ]
+          };
+        } else if (!LAST_PEAKS){
+          LAST_PEAKS = { labels:["Osmar","Dodô","Batatinha"], values:[0,0,0] };
+        }
+      }
+
+      drawDailyChart();
+      drawPeaksChart();
+    }
+
+    function drawGrid(ctx, w, h){
+      ctx.save();
+      ctx.globalAlpha = 0.18;
+      ctx.lineWidth = 1;
+      for (let y=26; y<h; y+=26){
+        ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.strokeStyle = "rgba(255,255,255,.12)"; ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function clearCanvas(c){
+      const ctx = c.getContext("2d");
+      const dpr = window.devicePixelRatio || 1;
+      const rect = c.getBoundingClientRect();
+      const w = Math.max(10, Math.floor(rect.width * dpr));
+      const h = Math.max(10, Math.floor(rect.height * dpr));
+      if (c.width !== w) c.width = w;
+      if (c.height !== h) c.height = h;
+      ctx.clearRect(0,0,w,h);
+      return {ctx,w,h,dpr};
+    }
+
+    function drawGroupedBars(canvas, labels, seriesMap){
+      const {ctx,w,h} = clearCanvas(canvas);
+      const padL = 44, padR = 16, padT = 18, padB = 36;
+      drawGrid(ctx, w, h);
+      const plotW = w - padL - padR;
+      const plotH = h - padT - padB;
+
+      // max
+      const all = [];
+      Object.values(seriesMap).forEach(arr => (arr||[]).forEach(v => all.push(Number(v)||0)));
+      const maxV = Math.max(10, ...all);
+
+      // axes labels
+      ctx.fillStyle = "rgba(255,255,255,.68)";
+      ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+      for (let i=0;i<=4;i++){
+        const v = Math.round(maxV * (i/4));
+        const y = padT + plotH - (plotH*(i/4));
+        ctx.fillText(v.toLocaleString("pt-BR"), padL-8, y);
+      }
+
+      const keys = Object.keys(seriesMap);
+      const n = labels.length || 1;
+      const groupW = plotW / n;
+      const gap = Math.max(6, groupW * 0.10);
+      const barW = Math.max(6, (groupW - gap*2) / keys.length);
+
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      for (let i=0;i<n;i++){
+        const x0 = padL + i*groupW + gap;
+        // label
+        const lbl = labels[i] ?? "";
+        ctx.fillStyle = "rgba(255,255,255,.72)";
+        ctx.fillText(lbl.replace("2026-",""), padL + i*groupW + groupW/2, padT+plotH+10);
+
+        for (let k=0;k<keys.length;k++){
+          const v = Number((seriesMap[keys[k]]||[])[i] ?? 0) || 0;
+          const bh = Math.max(0, (v / maxV) * plotH);
+          const x = x0 + k*barW;
+          const y = padT + plotH - bh;
+
+          // color by series
+          let col = "rgba(46, 204, 113, .85)";
+          if (keys[k] === "dodo") col = "rgba(59, 123, 255, .85)";
+          if (keys[k] === "batatinha") col = "rgba(241, 196, 15, .85)";
+          if (keys[k] === "osmar") col = "rgba(155, 89, 182, .85)";
+
+          // bar
+          ctx.fillStyle = col;
+          ctx.fillRect(x, y, barW-3, bh);
+
+          // glow
+          ctx.save();
+          ctx.globalAlpha = 0.15;
+          ctx.shadowBlur = 18;
+          ctx.shadowColor = col;
+          ctx.fillRect(x, y, barW-3, bh);
+          ctx.restore();
+        }
+      }
+
+      // legend
+      ctx.save();
+      ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+      ctx.textAlign = "left"; ctx.textBaseline = "middle";
+      const legend = [
+        ["Osmar","rgba(155, 89, 182, .85)"],
+        ["Dodô","rgba(59, 123, 255, .85)"],
+        ["Batatinha","rgba(241, 196, 15, .85)"],
+      ];
+      let lx = padL; let ly = 10;
+      for (const [name,col] of legend){
+        ctx.fillStyle = col; ctx.fillRect(lx, ly, 10, 10);
+        ctx.fillStyle = "rgba(255,255,255,.78)"; ctx.fillText(name, lx+14, ly+5);
+        lx += 92;
+      }
+      ctx.restore();
+    }
+
+    function drawSimpleBars(canvas, labels, values){
+      const {ctx,w,h} = clearCanvas(canvas);
+      const padL = 44, padR = 16, padT = 18, padB = 30;
+      drawGrid(ctx, w, h);
+      const plotW = w - padL - padR;
+      const plotH = h - padT - padB;
+
+      const maxV = Math.max(10, ...(values||[]).map(v => Number(v)||0));
+
+      ctx.fillStyle = "rgba(255,255,255,.68)";
+      ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+      for (let i=0;i<=4;i++){
+        const v = Math.round(maxV * (i/4));
+        const y = padT + plotH - (plotH*(i/4));
+        ctx.fillText(v.toLocaleString("pt-BR"), padL-8, y);
+      }
+
+      const n = labels.length || 1;
+      const gap = 14;
+      const barW = (plotW - gap*(n-1)) / n;
+
+      for (let i=0;i<n;i++){
+        const v = Number(values[i] ?? 0) || 0;
+        const bh = Math.max(0, (v / maxV) * plotH);
+        const x = padL + i*(barW+gap);
+        const y = padT + plotH - bh;
+
+        let col = "rgba(155, 89, 182, .86)";
+        if (i===1) col = "rgba(59, 123, 255, .86)";
+        if (i===2) col = "rgba(241, 196, 15, .86)";
+
+        ctx.fillStyle = col;
+        ctx.fillRect(x, y, barW, bh);
+
+        ctx.save();
+        ctx.globalAlpha = 0.18;
+        ctx.shadowBlur = 22;
+        ctx.shadowColor = col;
+        ctx.fillRect(x, y, barW, bh);
+        ctx.restore();
+
+        ctx.fillStyle = "rgba(255,255,255,.78)";
+        ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        ctx.fillText(labels[i], x + barW/2, padT + plotH + 8);
+      }
+    }
+
+    function drawDailyChart(){
+      const c = document.getElementById("chart-daily");
+      if (!c || !LAST_DAILY) return;
+      drawGroupedBars(c, LAST_DAILY.labels, LAST_DAILY.series);
+    }
+
+    function drawPeaksChart(){
+      const c = document.getElementById("chart-peaks");
+      if (!c || !LAST_PEAKS) return;
+      drawSimpleBars(c, LAST_PEAKS.labels, LAST_PEAKS.values);
+    }
+
+    function applySnapshot(payload){
+      const ts = payload.ts ?? Date.now();
+      const portals = payload.portals ?? [];
+      const intervalCounts = payload.interval_counts ?? payload.intervalCounts ?? payload.intervalCounts5min ?? payload.intervalCounts5Min ?? {};
+      const meta = payload.meta ?? {};
+
+      if (typeof meta.half_life_minutes === "number") CONFIG.HALF_LIFE_MINUTES = meta.half_life_minutes;
+
+      // index de portais válidos (com lat/lng)
+      portalsIndex = new Map();
+      const portalsArr = [];
+      portals.forEach(p => {
+        if (p.latPortal == null || p.lngPortal == null) return;
+        const obj = { ...p, idPortal: String(p.idPortal) };
+        portalsIndex.set(obj.idPortal, obj);
+        portalsArr.push(obj);
+      });
+
+      // KPIs
+      updateInicioKPIs({ ...payload, intervalCounts, interval_counts: intervalCounts, portals: portalsArr });
+
+      // bounds inicial
+      if (!initializedBounds && portalsArr.length > 0){
+        const latlngs = portalsArr.map(p => L.latLng(p.latPortal, p.lngPortal));
+        map.fitBounds(L.latLngBounds(latlngs), { padding: [80, 80] });
+        initializedBounds = true;
+      }
+
+      // estado por portal
+      const now = ts;
+      for (const portal of portalsArr){
+        const idPortal = portal.idPortal;
+        const current = Number(intervalCounts[idPortal] ?? 0);
+
+        const st = portalState.get(idPortal) || { acc: 0, lastTs: now, lastIntervalCount: 0, lastIntervalTs: null };
+        const dt = Math.max(0, now - (st.lastTs ?? now));
+        const d = decayFactor(dt);
+
+        st.acc = (st.acc * d) + current;
+        st.lastTs = now;
+        st.lastIntervalCount = current;
+        st.lastIntervalTs = now;
+
+        portalState.set(idPortal, st);
+        ensurePortalCircle(portal);
+      }
+
+      // normalização por max acc
+      let maxAcc = 0;
+      for (const portal of portalsArr){
+        const st = portalState.get(portal.idPortal);
+        maxAcc = Math.max(maxAcc, st?.acc ?? 0);
+      }
+
+      // update circles
+      for (const portal of portalsArr){
+        const st = portalState.get(portal.idPortal) || { acc: 0 };
+        let t = maxAcc > 0 ? (st.acc / maxAcc) : 0;
+
+        // boost dos baixos (mais visível)
+        t = Math.pow(clamp01(t), 0.55);
+
+        const color = colorByIntensity(t);
+        const radiusOuter = lerp(CONFIG.R_MIN, CONFIG.R_MAX, t);
+        const radiusInner = Math.max(28, radiusOuter * 0.48);
+
+        const c = portalCircles.get(portal.idPortal);
+        if (c){
+          c.outer.setLatLng([portal.latPortal, portal.lngPortal]).setRadius(radiusOuter);
+          c.inner.setLatLng([portal.latPortal, portal.lngPortal]).setRadius(radiusInner);
+
+          // opacidades mais fortes (azul aparece)
+          c.outer.setStyle({ fillColor: color, fillOpacity: 0.30 + 0.35*t });
+          c.inner.setStyle({ fillColor: color, fillOpacity: 0.50 + 0.40*t });
+        }
+      }
+
+      // topbar last cycle
+      const dt2 = new Date(now);
+      document.getElementById("lastCycle").textContent = `${pad2(dt2.getHours())}:${pad2(dt2.getMinutes())}`;
+    }
+
+    async function fetchSnapshot(){
+      const res = await fetch(CONFIG.API_ENDPOINT, { method:"GET" });
+      if (!res.ok) throw new Error("Falha ao buscar snapshot");
+      return await res.json();
+    }
+
+    async function tick(){
+      try{
+        const payload = await fetchSnapshot();
+        applySnapshot(payload);
+      } catch(e){
+        // silencioso (pode logar se quiser)
+        // console.warn(e);
+      }
+    }
+
+    // Boot
+    tick();
+    setInterval(tick, CONFIG.UPDATE_INTERVAL_MS);
+
+
+    // ======================= CÂMERAS =================== 
+
+    async function loadCameras() {
+        const grid = document.getElementById("camera-zones-grid");
+
+        try {
+            const res = await fetch("/api/ssp/cameras");
+
+            if (!res.ok) {
+                throw new Error(`Erro HTTP ${res.status}`);
+            }
+
+            const data = await res.json();
+            grid.innerHTML = "";
+
+            if (!data.zones || data.zones.length === 0) {
+                grid.innerHTML = "<div class='empty'>Nenhuma câmera encontrada</div>";
+                return;
+            }
+
+            data.zones.forEach(zone => {
+                const zoneEl = document.createElement("div");
+                zoneEl.className = "zone-card";
+
+                zoneEl.innerHTML = `
+                    <div class="zone-title">${zone.zone_name}</div>
+                    <div class="zone-cameras">
+                        ${zone.cameras.map(cam => `
+                            <div class="camera-card">
+                                <img src="${cam.last_image || '/static/no-image.png'}" alt="${cam.camera_name}">
+                                <div class="camera-info">
+                                    <div class="camera-name">${cam.camera_name}</div>
+                                    <div class="camera-meta">
+                                        Último frame: ${cam.last_update || '—'}
+                                    </div>
+                                </div>
+                            </div>
+                        `).join("")}
+                    </div>
+                `;
+
+                grid.appendChild(zoneEl);
+            });
+
+        } catch (err) {
+            console.error("[CÂMERAS] Falha ao carregar:", err);
+            grid.innerHTML = `
+                <div class="error">
+                    Não foi possível carregar as câmeras.<br>
+                    <small>${err.message}</small>
+                </div>
+            `;
+        }
+    }
+
+
+
+  
+    /* ======================
+       MODAL (expand cards)
+    ====================== */
+    const modal = document.getElementById("modal");
+    const modalContent = document.getElementById("modalContent");
+    const modalCloseBtn = document.getElementById("modalCloseBtn");
+
+    function openModalFromCard(card){
+      if (!modal || !modalContent) return;
+      modalContent.innerHTML = "";
+      const clone = card.cloneNode(true);
+      clone.classList.remove("clickable");
+      // canvases não clonam desenho -> recria no modal
+      const canvases = clone.querySelectorAll("canvas");
+      canvases.forEach(cv => {
+        const id = cv.id;
+        const repl = document.createElement("canvas");
+        repl.id = id + "-modal";
+        repl.height = cv.getAttribute("height") || 200;
+        cv.replaceWith(repl);
+      });
+      modalContent.appendChild(clone);
+      modal.classList.add("open");
+
+      // redesenha charts no modal
+      if (clone.querySelector("#chart-daily-modal") && LAST_DAILY){
+        drawGroupedBars(clone.querySelector("#chart-daily-modal"), LAST_DAILY.labels, LAST_DAILY.series);
+      }
+      if (clone.querySelector("#chart-peaks-modal") && LAST_PEAKS){
+        drawSimpleBars(clone.querySelector("#chart-peaks-modal"), LAST_PEAKS.labels, LAST_PEAKS.values);
+      }
+    }
+
+    function closeModal(){
+      if (!modal) return;
+      modal.classList.remove("open");
+      modalContent.innerHTML = "";
+    }
+
+    if (modalCloseBtn) modalCloseBtn.addEventListener("click", closeModal);
+    if (modal) modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+
+    function wireInicioCards(){
+      const view = document.getElementById("view-inicio");
+      if (!view) return;
+      view.querySelectorAll(".clickable").forEach(card => {
+        card.addEventListener("click", () => openModalFromCard(card));
+      });
+    }
+
+    // Garante redraw de canvas ao redimensionar
+    window.addEventListener("resize", () => { drawDailyChart(); drawPeaksChart(); });
+
+    wireInicioCards();
+
+  </script>
+
+  <!-- Modal expandível -->
+  <div class="modalOverlay" id="modal">
+    <div class="modalBox" role="dialog" aria-modal="true">
+      <div class="modalClose"><button id="modalCloseBtn">Fechar</button></div>
+      <div class="modalContent" id="modalContent"></div>
+    </div>
+  </div>
+
+</body>
+</html>

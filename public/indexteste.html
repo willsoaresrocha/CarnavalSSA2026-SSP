@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SSP • Carnaval • Portais (Intensidade por Fluxo)</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    :root{
+      --bg0:#070A12;
+      --bg1:#0A0F1D;
+      --text: rgba(255,255,255,.92);
+      --muted2: rgba(255,255,255,.44);
+      --shadow: 0 18px 55px rgba(0,0,0,.52);
+
+      --tagGreen:#36D47E;
+      --topbar-h: 68px;
+    }
+
+    *{ box-sizing:border-box; }
+    html, body{ height:100%; }
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      color: var(--text);
+      background:
+        radial-gradient(1200px 700px at 18% -10%, rgba(76,199,255,.11), transparent 58%),
+        radial-gradient(900px 650px at 78% 0%, rgba(147,88,255,.09), transparent 58%),
+        radial-gradient(900px 650px at 60% 110%, rgba(54,212,126,.06), transparent 60%),
+        linear-gradient(180deg, var(--bg1), var(--bg0));
+      overflow: hidden;
+    }
+
+    .app{ height:100%; display:flex; flex-direction:column; }
+
+    .topbar{
+      height: var(--topbar-h);
+      padding: 0 18px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      background: linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,.02));
+      backdrop-filter: blur(10px);
+    }
+
+    .top-left{ display:flex; flex-direction:column; gap:4px; min-width: 420px; }
+    .title{ font-weight: 750; font-size: 16px; letter-spacing: .01em; }
+    .subtitle{ font-size: 12px; color: var(--muted2); }
+
+    .top-right{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      min-width: 520px;
+      justify-content:flex-end;
+    }
+
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.18);
+      color: rgba(255,255,255,.76);
+      font-size: 12px;
+      white-space: nowrap;
+      backdrop-filter: blur(8px);
+    }
+    .dot{
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--tagGreen);
+      box-shadow: 0 0 0 5px rgba(54,212,126,.16);
+    }
+    .pill strong{ font-weight: 800; color: rgba(255,255,255,.86); }
+
+    .content{
+      height: calc(100% - var(--topbar-h));
+      padding: 0;
+      overflow:hidden;
+      position: relative;
+    }
+
+    #map{ width:100%; height:100%; background: rgba(0,0,0,.18); }
+
+    /* Leaflet tooltip visual mais “dashboard” */
+    .leaflet-tooltip{
+      background: rgba(0,0,0,.65) !important;
+      border: 1px solid rgba(255,255,255,.14) !important;
+      color: rgba(255,255,255,.90) !important;
+      border-radius: 12px !important;
+      padding: 10px 10px !important;
+      box-shadow: var(--shadow) !important;
+      backdrop-filter: blur(10px);
+      font-size: 12px;
+    }
+    .leaflet-tooltip-top:before,
+    .leaflet-tooltip-bottom:before,
+    .leaflet-tooltip-left:before,
+    .leaflet-tooltip-right:before{
+      border: none !important;
+    }
+
+    .tt-title{ font-weight: 850; margin-bottom: 6px; }
+    .tt-row{ display:flex; justify-content:space-between; gap:14px; }
+    .tt-key{ color: rgba(255,255,255,.70); }
+    .tt-val{ font-weight: 850; }
+    .tt-sub{ margin-top: 8px; color: rgba(255,255,255,.55); font-size: 11px; }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="top-left">
+        <div class="title">Carnaval — SSP-BA — Portais (Intensidade por Fluxo)</div>
+        <div class="subtitle">Atualiza a cada 5 min • acumula com decaimento (círculos “enche/esvazia”)</div>
+      </div>
+
+      <div class="top-right">
+        <div class="pill">
+          <span class="dot"></span>
+          <span><strong>Status</strong> Online</span>
+        </div>
+        <div class="pill">
+          <span>Último ciclo: <strong id="lastCycle">—</strong></span>
+        </div>
+        <div class="pill">
+          <span id="clock">—</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="content">
+      <div id="map"></div>
+    </main>
+  </div>
+
+  <script>
+    /* =========================================================
+       CONFIG (INTERNO) — NÃO APARECE PARA O CLIENTE
+       - Aqui você vai plugar DB/API e queries
+       - Importante: frontend não deve conectar direto no DB em produção.
+         O ideal é: Dashboard -> API segura -> DB
+    ========================================================== */
+
+    const CONFIG = {
+      UPDATE_INTERVAL_MS: 5 * 60 * 1000,
+      HALF_LIFE_MINUTES: 20, // meia-vida do “rastro”
+      R_MIN: 60,
+      R_MAX: 420,
+
+      // Se você quiser usar API depois:
+      DATA_MODE: "simulated", // "simulated" | "api"
+      API_ENDPOINT: "",       // ex: "https://seu-endpoint/ssp/portals"
+      // QUERY_PORTALS: "...",
+      // QUERY_METRICS:  "...",
+    };
+
+    /* ===== Clock ===== */
+    function pad2(n){ return String(n).padStart(2, "0"); }
+    function tickClock(){
+      const now = new Date();
+      const d = `${pad2(now.getDate())}/${pad2(now.getMonth()+1)}/${now.getFullYear()}`;
+      const t = `${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}`;
+      document.getElementById("clock").textContent = `${d} ${t}`;
+    }
+    tickClock();
+    setInterval(tickClock, 1000);
+
+    /* ===== Map ===== */
+    const map = L.map("map", {
+      zoomControl: true,
+      scrollWheelZoom: true,
+      doubleClickZoom: true,
+      boxZoom: true,
+      dragging: true
+    });
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: ""
+    }).addTo(map);
+
+    /* =========================================================
+       SSP • PORTAIS (pontos fixos)
+       - Cada portal = 2 círculos (shadow + núcleo)
+       - Raio e cor variam conforme intensidade acumulada (com decaimento)
+       - Tooltip mostra CONTAGEM DO INTERVALO (últimos 5 min)
+    ========================================================== */
+
+    // ✅ TESTE com seus 2 pontos (você vai mandar mais e eu adiciono)
+    const portals = [
+      { portal_id: "PORTAL_001", nome: "Portal 1", lat: -13.00574, lng: -38.53294 },
+      { portal_id: "PORTAL_002", nome: "Portal 2", lat: -12.99002, lng: -38.51941 }
+    ];
+
+    map.fitBounds(L.latLngBounds(portals.map(p => L.latLng(p.lat, p.lng))), { padding: [80, 80] });
+
+    const portalsLayer = L.layerGroup().addTo(map);
+
+    // estado por portal:
+    // acc: acumulado com decaimento (controla tamanho/cor)
+    // lastTs: timestamp da última atualização do acumulador
+    // lastIntervalCount: contagem do último intervalo (5 min) — aparece no tooltip
+    // lastIntervalTs: timestamp do último intervalo
+    const portalState = new Map();
+    portals.forEach(p => portalState.set(p.portal_id, {
+      acc: 0,
+      lastTs: Date.now(),
+      lastIntervalCount: 0,
+      lastIntervalTs: null
+    }));
+
+    function decayFactor(dtMs){
+      const dtMin = dtMs / 60000;
+      return Math.pow(0.5, dtMin / CONFIG.HALF_LIFE_MINUTES);
+    }
+
+    function clamp01(x){ return Math.max(0, Math.min(1, x)); }
+    function lerp(a,b,t){ return a + (b-a)*t; }
+
+    function hexToRgb(hex){
+      const h = hex.replace("#","").trim();
+      return {
+        r: parseInt(h.slice(0,2),16),
+        g: parseInt(h.slice(2,4),16),
+        b: parseInt(h.slice(4,6),16)
+      };
+    }
+    function rgbToHex(r,g,b){
+      const to = (v)=> v.toString(16).padStart(2,"0");
+      return `#${to(r)}${to(g)}${to(b)}`;
+    }
+    function lerpColor(c1, c2, t){
+      const a = hexToRgb(c1), b = hexToRgb(c2);
+      const r = Math.round(lerp(a.r,b.r,t));
+      const g = Math.round(lerp(a.g,b.g,t));
+      const bb = Math.round(lerp(a.b,b.b,t));
+      return rgbToHex(r,g,bb);
+    }
+    function colorByIntensity(t){
+      t = clamp01(t);
+      if (t < 0.25) return lerpColor("#2b6cff", "#00c2ff", t/0.25);
+      if (t < 0.55) return lerpColor("#00c2ff", "#00e39a", (t-0.25)/0.30);
+      if (t < 0.75) return lerpColor("#00e39a", "#f5b940", (t-0.55)/0.20);
+      return lerpColor("#f5b940", "#ff5c6c", (t-0.75)/0.25);
+    }
+
+    const portalCircles = new Map(); // portal_id -> { outer, inner }
+
+    function tooltipHTML(p){
+      const st = portalState.get(p.portal_id);
+      const lastTs = st?.lastIntervalTs ? new Date(st.lastIntervalTs) : null;
+      const tstr = lastTs ? `${pad2(lastTs.getHours())}:${pad2(lastTs.getMinutes())}` : "—";
+
+      const intervalCount = Number(st?.lastIntervalCount ?? 0);
+      const acc = Number(st?.acc ?? 0);
+
+      return `
+        <div class="tt-title">${p.nome} <span style="opacity:.7;">(${p.portal_id})</span></div>
+        <div class="tt-row"><div class="tt-key">Últimos 5 min</div><div class="tt-val">${intervalCount.toLocaleString("pt-BR")}</div></div>
+        <div class="tt-row"><div class="tt-key">Acumulado (c/ decaimento)</div><div class="tt-val">${Math.round(acc).toLocaleString("pt-BR")}</div></div>
+        <div class="tt-sub">Ciclo do intervalo: <strong>${tstr}</strong></div>
+      `;
+    }
+
+    function ensurePortalCircles(){
+      portalsLayer.clearLayers();
+      portalCircles.clear();
+
+      portals.forEach(p => {
+        const outer = L.circle([p.lat, p.lng], {
+          radius: CONFIG.R_MIN,
+          weight: 0,
+          fillColor: "#2b6cff",
+          fillOpacity: 0.18
+        }).addTo(portalsLayer);
+
+        const inner = L.circle([p.lat, p.lng], {
+          radius: Math.max(28, CONFIG.R_MIN * 0.45),
+          weight: 0,
+          fillColor: "#2b6cff",
+          fillOpacity: 0.38
+        }).addTo(portalsLayer);
+
+        // tooltip dinâmico (atualiza quando abre)
+        outer.bindTooltip("", { sticky: true, direction: "top", opacity: 1 });
+        inner.bindTooltip("", { sticky: true, direction: "top", opacity: 1 });
+
+        outer.on("mouseover", () => outer.setTooltipContent(tooltipHTML(p)));
+        inner.on("mouseover", () => inner.setTooltipContent(tooltipHTML(p)));
+
+        portalCircles.set(p.portal_id, { outer, inner });
+      });
+    }
+    ensurePortalCircles();
+
+    // snapshot: { PORTAL_001: 1200, PORTAL_002: 0, ... }
+    // significa "quantidade contada no último intervalo de 5 min"
+    function applyPortalSnapshot(snapshot, ts){
+      const now = ts ?? Date.now();
+
+      // 1) atualiza estado por portal
+      portals.forEach(p => {
+        const st = portalState.get(p.portal_id) || {
+          acc: 0, lastTs: now, lastIntervalCount: 0, lastIntervalTs: null
+        };
+
+        const dt = Math.max(0, now - st.lastTs);
+        const d = decayFactor(dt);
+
+        const current = Number(snapshot?.[p.portal_id] ?? 0);
+
+        st.acc = (st.acc * d) + current;
+        st.lastTs = now;
+
+        // guardar contagem do intervalo (para tooltip)
+        st.lastIntervalCount = current;
+        st.lastIntervalTs = now;
+
+        portalState.set(p.portal_id, st);
+      });
+
+      // 2) normalização por maior "acc" do momento
+      let maxAcc = 0;
+      portals.forEach(p => maxAcc = Math.max(maxAcc, (portalState.get(p.portal_id)?.acc ?? 0)));
+
+      // 3) atualiza círculos
+      portals.forEach(p => {
+        const st = portalState.get(p.portal_id);
+        const acc = st?.acc ?? 0;
+        const t = maxAcc > 0 ? (acc / maxAcc) : 0;
+
+        const color = colorByIntensity(t);
+        const radiusOuter = lerp(CONFIG.R_MIN, CONFIG.R_MAX, t);
+        const radiusInner = Math.max(28, radiusOuter * 0.48);
+
+        const c = portalCircles.get(p.portal_id);
+        if (c){
+          c.outer.setRadius(radiusOuter);
+          c.inner.setRadius(radiusInner);
+
+          c.outer.setStyle({ fillColor: color, fillOpacity: 0.18 + 0.22*t });
+          c.inner.setStyle({ fillColor: color, fillOpacity: 0.30 + 0.35*t });
+        }
+      });
+
+      // 4) UI topo
+      const dt2 = new Date(now);
+      document.getElementById("lastCycle").textContent = `${pad2(dt2.getHours())}:${pad2(dt2.getMinutes())}`;
+    }
+
+    /* ===== Fonte de dados (INTERNA) ===== */
+    async function fetchSnapshotFromAPI(){
+      const endpoint = (CONFIG.API_ENDPOINT || "").trim();
+      if (!endpoint) throw new Error("API_ENDPOINT vazio em CONFIG.");
+
+      // contrato esperado:
+      // { "ts": 170..., "portals": { "PORTAL_001": 1200, "PORTAL_002": 0 } }
+      const res = await fetch(endpoint, { method: "GET" });
+      if (!res.ok) throw new Error(`API erro: ${res.status}`);
+      const data = await res.json();
+      return { ts: data.ts ?? Date.now(), portals: data.portals ?? {} };
+    }
+
+    async function runCycleOnce(){
+      if (CONFIG.DATA_MODE === "api"){
+        const payload = await fetchSnapshotFromAPI();
+        applyPortalSnapshot(payload.portals, payload.ts);
+      } else {
+        // Simulação interna (apenas para teste visual)
+        const payload = simulateSnapshot();
+        applyPortalSnapshot(payload.portals, payload.ts);
+      }
+    }
+
+    // Scheduler (5 em 5 min)
+    let cycleTimer = null;
+    function startScheduler(){
+      if (cycleTimer) clearInterval(cycleTimer);
+      cycleTimer = setInterval(async () => {
+        try { await runCycleOnce(); } catch(e) { /* silencioso */ }
+      }, CONFIG.UPDATE_INTERVAL_MS);
+    }
+    startScheduler();
+
+    /* =========================================================
+       SIMULAÇÃO (INTERNA) — apenas para teste visual
+       - Portal 1 muito alto (cheio)
+       - Portal 2 muito baixo (vazio)
+       Você remove/ajusta quando plugar no backend.
+    ========================================================== */
+    function simulateSnapshot(){
+      const ts = Date.now();
+      return {
+        ts,
+        portals: {
+          "PORTAL_001": 1400, // pessoas contadas no último intervalo (5 min)
+          "PORTAL_002": 25    // pessoas contadas no último intervalo (5 min)
+        }
+      };
+    }
+
+    // Aplica um primeiro ciclo imediatamente
+    (function bootstrap(){
+      runCycleOnce();
+    })();
+
+  </script>
+</body>
+</html>

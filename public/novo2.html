@@ -1,0 +1,1440 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Carnaval — SSP-BA — Hive</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    :root{
+      --bg0:#070A12;
+      --bg1:#0A0F1D;
+
+      --text: rgba(255,255,255,.92);
+      --muted: rgba(255,255,255,.62);
+      --muted2: rgba(255,255,255,.44);
+
+      --card: rgba(0,0,0,.34);
+      --border: rgba(255,255,255,.10);
+
+      --shadow: 0 18px 55px rgba(0,0,0,.52);
+      --radius: 18px;
+      --radius2: 22px;
+
+      --tagGreen:#36D47E;
+      --tagBlue:#4aa3ff;
+      --tagAmber:#f5b940;
+      --tagRed:#ff5c6c;
+
+      --topbar-h: 70px;
+      --gap: 14px;
+    }
+
+    *{ box-sizing:border-box; }
+    html, body{ height:100%; }
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      color: var(--text);
+      background:
+        radial-gradient(1200px 700px at 18% -10%, rgba(76,199,255,.11), transparent 58%),
+        radial-gradient(900px 650px at 78% 0%, rgba(147,88,255,.09), transparent 58%),
+        radial-gradient(900px 650px at 60% 110%, rgba(54,212,126,.06), transparent 60%),
+        linear-gradient(180deg, var(--bg1), var(--bg0));
+      overflow: hidden;
+    }
+
+    .app{ height:100%; display:flex; flex-direction:column; }
+
+    /* ===== TOPBAR ===== */
+    .topbar{
+      height: var(--topbar-h);
+      padding: 0 18px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      background: linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,.02));
+      backdrop-filter: blur(10px);
+      gap: 14px;
+    }
+
+    .top-left{
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+      min-width: 420px;
+    }
+    .title{ font-weight: 900; font-size: 16px; letter-spacing: .01em; }
+    .subtitle{ font-size: 12px; color: var(--muted2); }
+
+    .tabs{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      padding: 6px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.18);
+      backdrop-filter: blur(10px);
+    }
+    .tab{
+      cursor:pointer;
+      user-select:none;
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 900;
+      color: rgba(255,255,255,.62);
+      border: 1px solid transparent;
+      transition: all .14s ease;
+      white-space: nowrap;
+    }
+    .tab:hover{ color: rgba(255,255,255,.82); }
+    .tab.active{
+      color: rgba(255,255,255,.92);
+      border-color: rgba(255,255,255,.14);
+      background: radial-gradient(700px 220px at 20% 0%, rgba(76,199,255,.12), transparent 55%),
+                  rgba(255,255,255,.05);
+      box-shadow: 0 10px 30px rgba(0,0,0,.30);
+    }
+
+    .top-right{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      min-width: 520px;
+      justify-content:flex-end;
+    }
+
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.18);
+      color: rgba(255,255,255,.76);
+      font-size: 12px;
+      white-space: nowrap;
+      backdrop-filter: blur(8px);
+    }
+    .dot{
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--tagGreen);
+      box-shadow: 0 0 0 5px rgba(54,212,126,.16);
+    }
+    .pill strong{ font-weight: 900; color: rgba(255,255,255,.90); }
+
+    /* ===== CONTENT ===== */
+    .content{
+      height: calc(100% - var(--topbar-h));
+      padding: 14px;
+      overflow:hidden;
+    }
+
+    .view{ height:100%; display:none; }
+    .view.active{ display:block; }
+
+    /* ===== INÍCIO LAYOUT ===== */
+    .split{
+      height: 100%;
+      display:grid;
+      grid-template-columns: 1.10fr 1.25fr;
+      gap: var(--gap);
+      min-height: 0;
+    }
+
+    .leftPanel{
+      min-height: 0;
+      display:grid;
+      grid-template-rows: auto auto auto auto; /* 3x topo, 3x baixo, 2 charts, alertas */
+      gap: var(--gap);
+    }
+
+    .grid3{ display:grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--gap); }
+    .charts2{ display:grid; grid-template-columns: 1fr 1fr; gap: var(--gap); min-height:0; }
+    .alerts{ min-height:0; }
+
+    /* Card */
+    .card{
+      border-radius: var(--radius2);
+      border: 1px solid var(--border);
+      background:
+        radial-gradient(900px 220px at 20% 0%, rgba(76,199,255,.10), transparent 55%),
+        rgba(0,0,0,.34);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+      overflow:hidden;
+      min-height: 0;
+    }
+
+    .card.clickable{
+      cursor: pointer;
+      transition: transform .10s ease, border-color .10s ease, background .10s ease;
+    }
+    .card.clickable:hover{
+      transform: translateY(-1px);
+      border-color: rgba(255,255,255,.16);
+      background:
+        radial-gradient(900px 220px at 20% 0%, rgba(76,199,255,.14), transparent 55%),
+        rgba(0,0,0,.34);
+    }
+
+    .cardHeader{
+      padding: 12px 12px 10px;
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap: 10px;
+    }
+    .cardTitle{
+      font-size: 12px;
+      font-weight: 900;
+      color: rgba(255,255,255,.88);
+      letter-spacing:.01em;
+    }
+    .cardSub{
+      margin-top: 4px;
+      font-size: 11px;
+      color: var(--muted2);
+    }
+    .tag{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 900;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(0,0,0,.18);
+      color: rgba(255,255,255,.80);
+      white-space: nowrap;
+    }
+    .tagDot{ width:8px; height:8px; border-radius:50%; }
+    .tag.blue .tagDot{ background: var(--tagBlue); box-shadow: 0 0 0 5px rgba(74,163,255,.14); }
+    .tag.green .tagDot{ background: var(--tagGreen); box-shadow: 0 0 0 5px rgba(54,212,126,.14); }
+    .tag.amber .tagDot{ background: var(--tagAmber); box-shadow: 0 0 0 5px rgba(245,185,64,.14); }
+    .tag.red .tagDot{ background: var(--tagRed); box-shadow: 0 0 0 5px rgba(255,92,108,.14); }
+
+    .cardBody{ padding: 0 12px 12px; min-height: 0; }
+
+    .kpiValue{ font-size: 34px; font-weight: 950; letter-spacing: .01em; margin: 2px 0 4px; }
+    .kpiHint{ font-size: 11px; color: var(--muted2); margin-bottom: 10px; }
+
+    .spark{
+      height: 26px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.08);
+      overflow:hidden;
+      position: relative;
+    }
+    .spark::after{
+      content:"";
+      position:absolute; inset:0;
+      background: linear-gradient(90deg, rgba(74,163,255,.0), rgba(74,163,255,.55), rgba(74,163,255,.0));
+      transform: translateX(-60%);
+      animation: sweep 3.2s ease-in-out infinite;
+      opacity:.55;
+    }
+    @keyframes sweep{
+      0%{ transform: translateX(-60%); }
+      50%{ transform: translateX(60%); }
+      100%{ transform: translateX(-60%); }
+    }
+
+    /* Portais card inner */
+    .portalsBox{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .mini{
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.18);
+      padding: 10px;
+    }
+    .mini .num{
+      font-size: 28px;
+      font-weight: 950;
+      letter-spacing:.01em;
+    }
+    .mini .lbl{
+      margin-top: 4px;
+      font-size: 11px;
+      color: rgba(255,255,255,.68);
+      font-weight: 800;
+      letter-spacing:.01em;
+    }
+    .num.green{ color: var(--tagGreen); }
+    .num.red{ color: var(--tagRed); }
+
+    /* Charts */
+    .chartCanvas{
+      height: 220px;
+      width: 100%;
+      border-radius: var(--radius);
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.18);
+      display:block;
+    }
+
+    /* Alerts */
+    .alertsList{
+      border-radius: var(--radius);
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.18);
+      overflow:auto;
+      max-height: 220px;
+    }
+    .alertItem{
+      display:flex;
+      align-items:flex-start;
+      gap:10px;
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(255,255,255,.06);
+      font-size: 12px;
+      color: rgba(255,255,255,.82);
+    }
+    .alertItem:last-child{ border-bottom:none; }
+    .sev{
+      width: 10px; height: 10px; border-radius: 3px; margin-top: 3px; flex: 0 0 auto;
+    }
+    .sev.red{ background: var(--tagRed); box-shadow: 0 0 0 4px rgba(255,92,108,.12); }
+    .sev.amber{ background: var(--tagAmber); box-shadow: 0 0 0 4px rgba(245,185,64,.12); }
+    .sev.blue{ background: var(--tagBlue); box-shadow: 0 0 0 4px rgba(74,163,255,.12); }
+    .sev.green{ background: var(--tagGreen); box-shadow: 0 0 0 4px rgba(54,212,126,.12); }
+
+    /* RIGHT PANEL (map) */
+    .mapCard{
+      height: 100%;
+      display:flex;
+      flex-direction:column;
+      min-height: 0;
+    }
+    .mapTop{
+      padding: 12px 12px 10px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 10px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    #map{
+      flex:1;
+      min-height: 0;
+      width:100%;
+      border-radius: 0 0 var(--radius2) var(--radius2);
+      background: rgba(0,0,0,.18);
+    }
+
+    /* Leaflet tooltip */
+    .leaflet-tooltip{
+      background: rgba(0,0,0,.70) !important;
+      border: 1px solid rgba(255,255,255,.14) !important;
+      color: rgba(255,255,255,.90) !important;
+      border-radius: 12px !important;
+      padding: 10px 10px !important;
+      box-shadow: var(--shadow) !important;
+      backdrop-filter: blur(10px);
+      font-size: 12px;
+    }
+    .leaflet-tooltip-top:before,
+    .leaflet-tooltip-bottom:before,
+    .leaflet-tooltip-left:before,
+    .leaflet-tooltip-right:before{ border: none !important; }
+
+    .tt-title{ font-weight: 950; margin-bottom: 6px; }
+    .tt-row{ display:flex; justify-content:space-between; gap:14px; }
+    .tt-key{ color: rgba(255,255,255,.70); }
+    .tt-val{ font-weight: 950; }
+    .tt-sub{ margin-top: 8px; color: rgba(255,255,255,.55); font-size: 11px; }
+
+    /* Other tabs base */
+    .simpleCard{
+      height: 100%;
+      display:flex;
+      flex-direction:column;
+      gap: var(--gap);
+    }
+    .pad{
+      padding: 16px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    /* Modal (popup full screen) */
+    .modal{
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.60);
+      backdrop-filter: blur(8px);
+      display:none;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      z-index: 9999;
+    }
+    .modal.open{ display:flex; }
+    .modalPanel{
+      width: min(1200px, 96vw);
+      height: min(820px, 92vh);
+      border-radius: 22px;
+      border: 1px solid rgba(255,255,255,.12);
+      background:
+        radial-gradient(900px 260px at 20% 0%, rgba(76,199,255,.14), transparent 55%),
+        rgba(0,0,0,.55);
+      box-shadow: 0 28px 90px rgba(0,0,0,.60);
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+    }
+    .modalTop{
+      padding: 12px 12px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      gap: 10px;
+    }
+    .modalTitle{
+      font-size: 13px;
+      font-weight: 950;
+      color: rgba(255,255,255,.90);
+      letter-spacing:.01em;
+    }
+    .btn{
+      cursor:pointer;
+      user-select:none;
+      border-radius: 12px;
+      padding: 8px 10px;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(0,0,0,.18);
+      color: rgba(255,255,255,.86);
+      font-size: 12px;
+      font-weight: 900;
+    }
+    .modalBody{
+      padding: 12px;
+      overflow:auto;
+      min-height:0;
+    }
+
+    .table{
+      width:100%;
+      border-collapse: collapse;
+      border-radius: 16px;
+      overflow:hidden;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.18);
+      font-size: 12px;
+    }
+    .table th, .table td{
+      padding: 10px 10px;
+      border-bottom: 1px solid rgba(255,255,255,.06);
+      text-align:left;
+      color: rgba(255,255,255,.82);
+    }
+    .table th{
+      color: rgba(255,255,255,.92);
+      font-weight: 950;
+      font-size: 12px;
+      background: rgba(255,255,255,.04);
+    }
+    .table tr:last-child td{ border-bottom: none; }
+    .mono{ font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+
+    @media (max-width: 1150px){
+      .split{ grid-template-columns: 1fr; }
+      .top-left{ min-width: auto; }
+      .top-right{ display:none; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="top-left">
+        <div class="title">Carnaval — SSP-BA — Megan Inteligência Artificial — Hive Computer Vision</div>
+        <div class="subtitle">Visão Geral • circuitos, totais e alertas • clique em qualquer card para expandir</div>
+      </div>
+
+      <nav class="tabs" id="tabs">
+        <div class="tab active" data-view="inicio">INÍCIO</div>
+        <div class="tab" data-view="ocorrencias">OCORRÊNCIAS</div>
+        <div class="tab" data-view="zonas">ZONAS</div>
+        <div class="tab" data-view="cameras">CÂMERAS</div>
+        <div class="tab" data-view="relatorios">RELATÓRIOS</div>
+      </nav>
+
+      <div class="top-right">
+        <div class="pill">
+          <span class="dot"></span>
+          <span><strong>Atualização</strong> OK</span>
+        </div>
+        <div class="pill">
+          <span>Último ciclo: <strong id="lastCycle">—</strong></span>
+        </div>
+        <div class="pill">
+          <span id="clock">—</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="content">
+      <!-- ===== VIEW: INÍCIO ===== -->
+      <section class="view active" id="view-inicio">
+        <div class="split">
+          <!-- LEFT: INDICADORES -->
+          <div class="leftPanel">
+            <!-- Row 1: Circuitos AGORA -->
+            <div class="grid3">
+              <div class="card clickable" data-popup="circuit-osmar">
+                <div class="cardHeader">
+                  <div>
+                    <div class="cardTitle">Circuito Osmar (Agora)</div>
+                    <div class="cardSub">Somatório dos portais do circuito</div>
+                  </div>
+                  <div class="tag blue"><span class="tagDot"></span><span>AO VIVO</span></div>
+                </div>
+                <div class="cardBody">
+                  <div class="kpiValue" id="kpi-now-osmar">0</div>
+                  <div class="kpiHint">Janela móvel • últimos <span id="kpi-now-window">5</span> min</div>
+                  <div class="spark"></div>
+                </div>
+              </div>
+
+              <div class="card clickable" data-popup="circuit-dodo">
+                <div class="cardHeader">
+                  <div>
+                    <div class="cardTitle">Circuito Dodô (Agora)</div>
+                    <div class="cardSub">Somatório dos portais do circuito</div>
+                  </div>
+                  <div class="tag blue"><span class="tagDot"></span><span>AO VIVO</span></div>
+                </div>
+                <div class="cardBody">
+                  <div class="kpiValue" id="kpi-now-dodo">0</div>
+                  <div class="kpiHint">Janela móvel • últimos <span class="kpi-now-window">5</span> min</div>
+                  <div class="spark"></div>
+                </div>
+              </div>
+
+              <div class="card clickable" data-popup="circuit-batatinha">
+                <div class="cardHeader">
+                  <div>
+                    <div class="cardTitle">Circuito Batatinha (Agora)</div>
+                    <div class="cardSub">Somatório dos portais do circuito</div>
+                  </div>
+                  <div class="tag blue"><span class="tagDot"></span><span>AO VIVO</span></div>
+                </div>
+                <div class="cardBody">
+                  <div class="kpiValue" id="kpi-now-batatinha">0</div>
+                  <div class="kpiHint">Janela móvel • últimos <span class="kpi-now-window">5</span> min</div>
+                  <div class="spark"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Row 2: Totais + Portais -->
+            <div class="grid3">
+              <div class="card clickable" data-popup="total-hoje">
+                <div class="cardHeader">
+                  <div>
+                    <div class="cardTitle">Total geral hoje</div>
+                    <div class="cardSub">Somatório dos 3 circuitos até agora</div>
+                  </div>
+                  <div class="tag green"><span class="tagDot"></span><span>HOJE</span></div>
+                </div>
+                <div class="cardBody">
+                  <div class="kpiValue" id="kpi-total-hoje">0</div>
+                  <div class="kpiHint">Acumulado do dia</div>
+                  <div class="spark"></div>
+                </div>
+              </div>
+
+              <div class="card clickable" data-popup="total-carnaval">
+                <div class="cardHeader">
+                  <div>
+                    <div class="cardTitle">Total geral Carnaval 2026</div>
+                    <div class="cardSub">Somatório de todos os dias até agora</div>
+                  </div>
+                  <div class="tag green"><span class="tagDot"></span><span>CARNAVAL</span></div>
+                </div>
+                <div class="cardBody">
+                  <div class="kpiValue" id="kpi-total-carnaval">0</div>
+                  <div class="kpiHint">Acumulado do evento</div>
+                  <div class="spark"></div>
+                </div>
+              </div>
+
+              <div class="card clickable" data-popup="portais">
+                <div class="cardHeader">
+                  <div>
+                    <div class="cardTitle">Portais</div>
+                    <div class="cardSub">Status operacional (ativos / inativos)</div>
+                  </div>
+                  <div class="tag amber"><span class="tagDot"></span><span>STATUS</span></div>
+                </div>
+                <div class="cardBody">
+                  <div class="portalsBox">
+                    <div class="mini">
+                      <div class="num green mono" id="kpi-portais-ativos">0</div>
+                      <div class="lbl">Ativos</div>
+                    </div>
+                    <div class="mini">
+                      <div class="num red mono" id="kpi-portais-inativos">0</div>
+                      <div class="lbl">Inativos</div>
+                    </div>
+                  </div>
+                  <div class="kpiHint" style="margin-top:10px;">Base: leitura recente por portal</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Row 3: Charts -->
+            <div class="charts2">
+              <div class="card clickable" data-popup="pessoas-por-dia">
+                <div class="cardHeader">
+                  <div>
+                    <div class="cardTitle">Pessoas por dia (12–17/02/2026)</div>
+                    <div class="cardSub">Barras por circuito • comparação diária</div>
+                  </div>
+                  <div class="tag blue"><span class="tagDot"></span><span>SÉRIE</span></div>
+                </div>
+                <div class="cardBody">
+                  <canvas class="chartCanvas" id="chart-daily" width="900" height="260"></canvas>
+                </div>
+              </div>
+
+              <div class="card clickable" data-popup="picos-por-circuito">
+                <div class="cardHeader">
+                  <div>
+                    <div class="cardTitle">Picos por circuito</div>
+                    <div class="cardSub">Dia com maior número registrado</div>
+                  </div>
+                  <div class="tag blue"><span class="tagDot"></span><span>PICOS</span></div>
+                </div>
+                <div class="cardBody">
+                  <canvas class="chartCanvas" id="chart-peaks" width="900" height="260"></canvas>
+                </div>
+              </div>
+            </div>
+
+            <!-- Row 4: Alerts -->
+            <div class="card clickable alerts" data-popup="alertas">
+              <div class="cardHeader">
+                <div>
+                  <div class="cardTitle">Alertas — resumo operacional</div>
+                  <div class="cardSub">Lista por criticidade e relevância</div>
+                </div>
+                <div class="tag red"><span class="tagDot"></span><span>ALERTA</span></div>
+              </div>
+              <div class="cardBody">
+                <div class="alertsList" id="alerts-list"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- RIGHT: MAPA -->
+          <div class="card mapCard clickable" data-popup="mapa">
+            <div class="mapTop">
+              <div>
+                <div class="cardTitle">Mapa Interativo (SSP)</div>
+                <div class="cardSub">Portais como pontos • halo varia com fluxo no agora</div>
+              </div>
+              <div class="tag blue"><span class="tagDot"></span><span>MAPA</span></div>
+            </div>
+            <div id="map"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== VIEW: OCORRÊNCIAS ===== -->
+      <section class="view" id="view-ocorrencias">
+        <div class="card simpleCard">
+          <div class="cardHeader">
+            <div>
+              <div class="cardTitle">Ocorrências</div>
+              <div class="cardSub">Estrutura pronta para SSP (eventos/alertas)</div>
+            </div>
+            <div class="tag red"><span class="tagDot"></span><span>SSP</span></div>
+          </div>
+          <div class="pad">
+            Tela pronta para receber listagem, filtros, severidade e timeline.
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== VIEW: ZONAS ===== -->
+      <section class="view" id="view-zonas">
+        <div class="card simpleCard">
+          <div class="cardHeader">
+            <div>
+              <div class="cardTitle">Zonas</div>
+              <div class="cardSub">SSP (portais). SALTUR (polígonos) entra depois.</div>
+            </div>
+            <div class="tag amber"><span class="tagDot"></span><span>EM BREVE</span></div>
+          </div>
+          <div class="pad">
+            Aqui vamos encaixar o dashboard da SALTUR (polígonos por câmera) depois.
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== VIEW: CÂMERAS ===== -->
+      <section class="view" id="view-cameras">
+        <div id="camera-zones-grid" class="pad">Abra a aba CÂMERAS para carregar as zonas.</div>
+      </section>
+
+      <!-- ===== VIEW: RELATÓRIOS ===== -->
+      <section class="view" id="view-relatorios">
+        <div class="card simpleCard">
+          <div class="cardHeader">
+            <div>
+              <div class="cardTitle">Relatórios</div>
+              <div class="cardSub">Exportações e replay do histórico (JSONL)</div>
+            </div>
+            <div class="tag blue"><span class="tagDot"></span><span>HISTÓRICO</span></div>
+          </div>
+          <div class="pad">
+            Conectar leitura do histórico salvo pelo server (data/history-ssp.jsonl) e gerar export.
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Modal -->
+  <div class="modal" id="modal">
+    <div class="modalPanel">
+      <div class="modalTop">
+        <div class="modalTitle" id="modalTitle">—</div>
+        <div style="display:flex; gap:10px;">
+          <div class="btn" id="modalClose">Fechar (Esc)</div>
+        </div>
+      </div>
+      <div class="modalBody" id="modalBody"></div>
+    </div>
+  </div>
+
+  <script>
+    /* ======================
+       TAB NAV
+    ====================== */
+    const tabs = document.getElementById("tabs");
+    const tabEls = Array.from(tabs.querySelectorAll(".tab"));
+
+    function activateTab(key){
+      tabEls.forEach(t => t.classList.toggle("active", t.dataset.view === key));
+      document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+      const view = document.getElementById(`view-${key}`);
+      if (view) view.classList.add("active");
+
+      if (key === "inicio" && window.__map){
+        setTimeout(() => window.__map.invalidateSize(), 120);
+      }
+      if (key === "cameras") {
+        loadCameras();
+      }
+    }
+
+    tabs.addEventListener("click", (e) => {
+      const t = e.target.closest(".tab");
+      if (!t) return;
+      activateTab(t.dataset.view);
+    });
+
+    /* ======================
+       CLOCK
+    ====================== */
+    function pad2(n){ return String(n).padStart(2, "0"); }
+    function tickClock(){
+      const now = new Date();
+      const d = `${pad2(now.getDate())}/${pad2(now.getMonth()+1)}/${now.getFullYear()}`;
+      const t = `${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}`;
+      const el = document.getElementById("clock");
+      if (el) el.textContent = `${d} ${t}`;
+    }
+    tickClock();
+    setInterval(tickClock, 1000);
+
+    /* ======================
+       MODAL (popup full screen)
+    ====================== */
+    const modal = document.getElementById("modal");
+    const modalTitle = document.getElementById("modalTitle");
+    const modalBody = document.getElementById("modalBody");
+    const modalClose = document.getElementById("modalClose");
+
+    function openModal(title, html){
+      modalTitle.textContent = title;
+      modalBody.innerHTML = html;
+      modal.classList.add("open");
+    }
+    function closeModal(){
+      modal.classList.remove("open");
+      modalBody.innerHTML = "";
+    }
+    modalClose.addEventListener("click", closeModal);
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) closeModal();
+    });
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && modal.classList.contains("open")) closeModal();
+    });
+
+    document.addEventListener("click", (e) => {
+      const card = e.target.closest(".card.clickable");
+      if (!card) return;
+      const key = card.getAttribute("data-popup");
+      if (!key) return;
+      // conteúdo dinâmico (usa último payload)
+      buildPopup(key);
+    });
+
+    /* ======================
+       DATA + RENDER
+    ====================== */
+    const CONFIG = {
+      API_ENDPOINT: "/api/ssp/snapshot",
+      UPDATE_INTERVAL_MS: 60 * 1000,
+      HALF_LIFE_MINUTES: 20,
+      NOW_WINDOW_MIN: 5,
+      R_MIN: 60,
+      R_MAX: 420
+    };
+
+    let LAST_PAYLOAD = null;
+
+    function clamp01(x){ return Math.max(0, Math.min(1, x)); }
+    function lerp(a,b,t){ return a + (b-a)*t; }
+
+    function hexToRgb(hex){
+      const h = hex.replace("#","").trim();
+      return { r: parseInt(h.slice(0,2),16), g: parseInt(h.slice(2,4),16), b: parseInt(h.slice(4,6),16) };
+    }
+    function rgbToHex(r,g,b){
+      const to = (v)=> v.toString(16).padStart(2,"0");
+      return `#${to(r)}${to(g)}${to(b)}`;
+    }
+    function lerpColor(c1, c2, t){
+      const a = hexToRgb(c1), b = hexToRgb(c2);
+      const r = Math.round(lerp(a.r,b.r,t));
+      const g = Math.round(lerp(a.g,b.g,t));
+      const bb = Math.round(lerp(a.b,b.b,t));
+      return rgbToHex(r,g,bb);
+    }
+    function colorByIntensity(t){
+      t = clamp01(t);
+      if (t < 0.25) return lerpColor("#3b7bff", "#00e5ff", t/0.25);
+      if (t < 0.55) return lerpColor("#00e5ff", "#00e39a", (t-0.25)/0.30);
+      if (t < 0.75) return lerpColor("#00e39a", "#f5b940", (t-0.55)/0.20);
+      return lerpColor("#f5b940", "#ff5c6c", (t-0.75)/0.25);
+    }
+
+    function decayFactor(dtMs){
+      const dtMin = dtMs / 60000;
+      return Math.pow(0.5, dtMin / CONFIG.HALF_LIFE_MINUTES);
+    }
+
+    function setText(id, v){
+      const el = document.getElementById(id);
+      if (el) el.textContent = v;
+    }
+    function fmt(n){
+      try { return Number(n || 0).toLocaleString("pt-BR"); } catch(e){ return String(n||0); }
+    }
+
+    // ===== Charts (sem libs) =====
+    function clearCanvas(ctx, w, h){
+      ctx.clearRect(0,0,w,h);
+      // grid sutil
+      ctx.globalAlpha = 0.16;
+      ctx.strokeStyle = "white";
+      ctx.lineWidth = 1;
+      const step = 60;
+      for (let x=0; x<w; x+=step){
+        ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke();
+      }
+      for (let y=0; y<h; y+=step){
+        ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    function drawDailyChart(series){
+      const c = document.getElementById("chart-daily");
+      if (!c) return;
+      const ctx = c.getContext("2d");
+      const w = c.width, h = c.height;
+      clearCanvas(ctx, w, h);
+
+      const padding = {l: 44, r: 14, t: 14, b: 34};
+      const innerW = w - padding.l - padding.r;
+      const innerH = h - padding.t - padding.b;
+
+      const days = (series || []).map(x => x.date);
+      const maxTotal = Math.max(1, ...(series || []).map(x => Number(x.total || 0)));
+
+      // axes
+      ctx.globalAlpha = 0.35;
+      ctx.strokeStyle = "white";
+      ctx.beginPath();
+      ctx.moveTo(padding.l, padding.t);
+      ctx.lineTo(padding.l, padding.t + innerH);
+      ctx.lineTo(padding.l + innerW, padding.t + innerH);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+
+      const barW = innerW / Math.max(1, days.length);
+      const gap = Math.min(10, barW * 0.18);
+
+      // colors
+      const colO = "#4aa3ff";
+      const colD = "#36D47E";
+      const colB = "#9358ff";
+
+      // labels + bars
+      ctx.font = "11px ui-sans-serif, system-ui";
+      ctx.fillStyle = "rgba(255,255,255,.78)";
+      (series || []).forEach((row, i) => {
+        const x0 = padding.l + i * barW + gap*0.5;
+        const bw = barW - gap;
+
+        const o = Number(row.OSMAR||0);
+        const d = Number(row.DODO||0);
+        const b = Number(row.BATATINHA||0);
+
+        const scale = innerH / maxTotal;
+
+        let y = padding.t + innerH;
+
+        // stacked bars: OSMAR (bottom), DODO, BATATINHA (top)
+        const parts = [
+          {v:o, c:colO},
+          {v:d, c:colD},
+          {v:b, c:colB},
+        ];
+
+        parts.forEach(p => {
+          const ph = p.v * scale;
+          y -= ph;
+          ctx.globalAlpha = 0.90;
+          ctx.fillStyle = p.c;
+          ctx.fillRect(x0, y, bw, ph);
+        });
+        ctx.globalAlpha = 1;
+
+        // x label (dd/mm)
+        const dd = row.date.slice(8,10);
+        const mm = row.date.slice(5,7);
+        const label = `${dd}/${mm}`;
+        ctx.fillStyle = "rgba(255,255,255,.70)";
+        ctx.fillText(label, x0 + 4, padding.t + innerH + 20);
+      });
+
+      // y ticks
+      ctx.fillStyle = "rgba(255,255,255,.55)";
+      const ticks = 4;
+      for (let i=0;i<=ticks;i++){
+        const v = Math.round((maxTotal/ticks)*i);
+        const y = padding.t + innerH - (innerH/ticks)*i;
+        ctx.globalAlpha = 0.18;
+        ctx.strokeStyle = "white";
+        ctx.beginPath();
+        ctx.moveTo(padding.l, y);
+        ctx.lineTo(padding.l+innerW, y);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        ctx.fillText(fmt(v), 6, y+4);
+      }
+    }
+
+    function drawPeaksChart(peaks){
+      const c = document.getElementById("chart-peaks");
+      if (!c) return;
+      const ctx = c.getContext("2d");
+      const w = c.width, h = c.height;
+      clearCanvas(ctx, w, h);
+
+      const padding = {l: 110, r: 16, t: 20, b: 20};
+      const innerW = w - padding.l - padding.r;
+      const innerH = h - padding.t - padding.b;
+
+      const rows = [
+        {k:"OSMAR", label:"OSMAR", color:"#4aa3ff"},
+        {k:"DODO", label:"DODÔ", color:"#36D47E"},
+        {k:"BATATINHA", label:"BATATINHA", color:"#9358ff"},
+      ];
+
+      const values = rows.map(r => Number((peaks?.[r.k]?.value)||0));
+      const maxV = Math.max(1, ...values);
+
+      const rowH = innerH / rows.length;
+
+      ctx.font = "12px ui-sans-serif, system-ui";
+      rows.forEach((r, i) => {
+        const y = padding.t + i*rowH + rowH*0.25;
+        const bh = rowH*0.50;
+        const v = Number((peaks?.[r.k]?.value)||0);
+        const d = (peaks?.[r.k]?.date)||"—";
+        const bw = innerW * (v / maxV);
+
+        // label
+        ctx.fillStyle = "rgba(255,255,255,.80)";
+        ctx.fillText(r.label, 14, y+bh*0.75);
+
+        // bar
+        ctx.globalAlpha = 0.92;
+        ctx.fillStyle = r.color;
+        ctx.fillRect(padding.l, y, bw, bh);
+        ctx.globalAlpha = 1;
+
+        // value + date
+        ctx.fillStyle = "rgba(255,255,255,.86)";
+        ctx.fillText(`${fmt(v)} • ${d}`, padding.l + bw + 10, y + bh*0.75);
+      });
+    }
+
+    function renderAlerts(alerts){
+      const box = document.getElementById("alerts-list");
+      if (!box) return;
+      const items = (alerts || []);
+      if (!items.length){
+        box.innerHTML = `<div class="alertItem"><div class="sev green"></div><div>Sem alertas relevantes no momento.</div></div>`;
+        return;
+      }
+      box.innerHTML = items.map(a => {
+        const sev = (a.severity || "blue").toLowerCase();
+        const txt = a.text || "";
+        return `<div class="alertItem"><div class="sev ${sev}"></div><div>${txt}</div></div>`;
+      }).join("");
+    }
+
+    function applyDashboard(payload){
+      LAST_PAYLOAD = payload;
+
+      const meta = payload.meta || {};
+      if (typeof meta.half_life_minutes === "number") CONFIG.HALF_LIFE_MINUTES = meta.half_life_minutes;
+      if (typeof meta.now_window_min === "number") CONFIG.NOW_WINDOW_MIN = meta.now_window_min;
+
+      // update window labels
+      const win = String(CONFIG.NOW_WINDOW_MIN);
+      const winEl = document.getElementById("kpi-now-window");
+      if (winEl) winEl.textContent = win;
+      document.querySelectorAll(".kpi-now-window").forEach(el => el.textContent = win);
+
+      // KPIs (circuitos agora)
+      const t = payload.totalsNowByCircuit || {};
+      setText("kpi-now-osmar", fmt(t.OSMAR));
+      setText("kpi-now-dodo", fmt(t.DODO));
+      setText("kpi-now-batatinha", fmt(t.BATATINHA));
+
+      // Totais
+      setText("kpi-total-hoje", fmt(payload.totalToday));
+      setText("kpi-total-carnaval", fmt(payload.totalCarnaval));
+
+      // Portais
+      const ps = payload.portalsStatus || {};
+      setText("kpi-portais-ativos", fmt(ps.active));
+      setText("kpi-portais-inativos", fmt(ps.inactive));
+
+      // Charts
+      drawDailyChart(payload.dailySeries || []);
+      drawPeaksChart(payload.peaksByCircuit || {});
+      renderAlerts(payload.alerts || []);
+
+      // Topbar last cycle
+      const ts = payload.ts ?? Date.now();
+      const dt2 = new Date(ts);
+      setText("lastCycle", `${pad2(dt2.getHours())}:${pad2(dt2.getMinutes())}`);
+    }
+
+    /* ======================
+       MAP
+    ====================== */
+    const map = L.map("map", { zoomControl:true, scrollWheelZoom:true, dragging:true });
+    window.__map = map;
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "" }).addTo(map);
+    const portalsLayer = L.layerGroup().addTo(map);
+
+    const portalState = new Map();   // idPortal -> {acc,lastTs,lastIntervalCount,lastIntervalTs}
+    const portalCircles = new Map(); // idPortal -> {outer,inner}
+    let initializedBounds = false;
+
+    function tooltipHTML(portal){
+      const st = portalState.get(portal.idPortal);
+      const lastTs = st?.lastIntervalTs ? new Date(st.lastIntervalTs) : null;
+      const tstr = lastTs ? `${pad2(lastTs.getHours())}:${pad2(lastTs.getMinutes())}` : "—";
+
+      const intervalCount = Number(st?.lastIntervalCount ?? 0);
+      const acc = Number(st?.acc ?? 0);
+
+      return `
+        <div class="tt-title">${portal.nomePortal ?? "Portal"} <span style="opacity:.7;">(#${portal.idPortal})</span></div>
+        <div class="tt-row"><div class="tt-key">Agora</div><div class="tt-val">${fmt(intervalCount)}</div></div>
+        <div class="tt-row"><div class="tt-key">Acumulado (c/ decaimento)</div><div class="tt-val">${fmt(Math.round(acc))}</div></div>
+        <div class="tt-sub">Ciclo: <strong>${tstr}</strong> • Circuito: <strong>${portal.circuito || "—"}</strong></div>
+      `;
+    }
+
+    function ensurePortalCircle(portal){
+      if (portalCircles.has(portal.idPortal)) return;
+
+      const outer = L.circle([portal.latPortal, portal.lngPortal], {
+        radius: CONFIG.R_MIN,
+        weight: 0,
+        fillColor: "#3b7bff",
+        fillOpacity: 0.30
+      }).addTo(portalsLayer);
+
+      const inner = L.circle([portal.latPortal, portal.lngPortal], {
+        radius: Math.max(28, CONFIG.R_MIN * 0.45),
+        weight: 0,
+        fillColor: "#3b7bff",
+        fillOpacity: 0.55
+      }).addTo(portalsLayer);
+
+      outer.bindTooltip("", { sticky: true, direction: "top", opacity: 1 });
+      inner.bindTooltip("", { sticky: true, direction: "top", opacity: 1 });
+
+      outer.on("mouseover", () => outer.setTooltipContent(tooltipHTML(portal)));
+      inner.on("mouseover", () => inner.setTooltipContent(tooltipHTML(portal)));
+
+      portalCircles.set(portal.idPortal, { outer, inner });
+    }
+
+    function applyMap(payload){
+      const ts = payload.ts ?? Date.now();
+      const portals = (payload.portals ?? []).filter(p => p.latPortal != null && p.lngPortal != null)
+                                            .map(p => ({...p, idPortal: String(p.idPortal)}));
+      const intervalCounts = payload.intervalCounts ?? {}; // {idPortal: qtd_now}
+
+      if (!initializedBounds && portals.length > 0){
+        const latlngs = portals.map(p => L.latLng(p.latPortal, p.lngPortal));
+        map.fitBounds(L.latLngBounds(latlngs), { padding: [80, 80] });
+        initializedBounds = true;
+      }
+
+      const now = ts;
+      for (const portal of portals){
+        const idPortal = portal.idPortal;
+        const current = Number(intervalCounts[idPortal] ?? 0);
+
+        const st = portalState.get(idPortal) || { acc: 0, lastTs: now, lastIntervalCount: 0, lastIntervalTs: null };
+        const dt = Math.max(0, now - (st.lastTs ?? now));
+        const d = decayFactor(dt);
+
+        st.acc = (st.acc * d) + current;
+        st.lastTs = now;
+        st.lastIntervalCount = current;
+        st.lastIntervalTs = now;
+
+        portalState.set(idPortal, st);
+        ensurePortalCircle(portal);
+      }
+
+      // normalização por max acc
+      let maxAcc = 0;
+      for (const portal of portals){
+        const st = portalState.get(portal.idPortal);
+        maxAcc = Math.max(maxAcc, st?.acc ?? 0);
+      }
+
+      for (const portal of portals){
+        const st = portalState.get(portal.idPortal) || { acc: 0 };
+        let t = maxAcc > 0 ? (st.acc / maxAcc) : 0;
+        t = Math.pow(clamp01(t), 0.55);
+
+        const color = colorByIntensity(t);
+        const radiusOuter = lerp(CONFIG.R_MIN, CONFIG.R_MAX, t);
+        const radiusInner = Math.max(28, radiusOuter * 0.48);
+
+        const c = portalCircles.get(portal.idPortal);
+        if (c){
+          c.outer.setLatLng([portal.latPortal, portal.lngPortal]).setRadius(radiusOuter);
+          c.inner.setLatLng([portal.latPortal, portal.lngPortal]).setRadius(radiusInner);
+          c.outer.setStyle({ fillColor: color, fillOpacity: 0.30 + 0.35*t });
+          c.inner.setStyle({ fillColor: color, fillOpacity: 0.50 + 0.40*t });
+        }
+      }
+    }
+
+    async function fetchPayload(){
+      const res = await fetch(CONFIG.API_ENDPOINT, { method:"GET" });
+      if (!res.ok) throw new Error("Falha ao buscar snapshot");
+      return await res.json();
+    }
+
+    async function tick(){
+      try{
+        const payload = await fetchPayload();
+        applyDashboard(payload);
+        applyMap(payload);
+      } catch(e){
+        // console.warn(e);
+      }
+    }
+
+    tick();
+    setInterval(tick, CONFIG.UPDATE_INTERVAL_MS);
+
+    /* ======================
+       POPUPS (conteúdo detalhado)
+    ====================== */
+    function buildTable(rows, title){
+      const header = `<div style="font-weight:950; margin: 4px 0 10px; color: rgba(255,255,255,.90);">${title}</div>`;
+      if (!rows || !rows.length){
+        return header + `<div style="color: rgba(255,255,255,.65); font-size:12px;">Sem dados.</div>`;
+      }
+      const html = `
+        ${header}
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Portal</th>
+              <th>Circuito</th>
+              <th class="mono">Valor</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(r => `
+              <tr>
+                <td>${(r.nomePortal || ("Portal " + r.idPortal))} <span style="opacity:.6;">(#${r.idPortal})</span></td>
+                <td>${r.circuito || "—"}</td>
+                <td class="mono">${fmt(r.value)}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      `;
+      return html;
+    }
+
+    function buildPopup(key){
+      const p = LAST_PAYLOAD;
+      if (!p){
+        openModal("Carregando…", "<div style='color:rgba(255,255,255,.70)'>Aguardando dados do servidor.</div>");
+        return;
+      }
+
+      const nowWin = (p.meta && p.meta.now_window_min) ? p.meta.now_window_min : CONFIG.NOW_WINDOW_MIN;
+
+      if (key === "circuit-osmar" || key === "circuit-dodo" || key === "circuit-batatinha"){
+        const c = key.includes("osmar") ? "OSMAR" : key.includes("dodo") ? "DODO" : "BATATINHA";
+        const total = (p.totalsNowByCircuit && p.totalsNowByCircuit[c]) || 0;
+        const rows = (p.breakdownNow || []).filter(x => x.circuito === c).slice(0, 50);
+        openModal(`Circuito ${c} — Agora`, `
+          <div style="display:flex; gap:16px; align-items:center; margin-bottom: 12px;">
+            <div style="font-size:44px; font-weight:950;">${fmt(total)}</div>
+            <div style="color:rgba(255,255,255,.65); font-size:12px;">Somatório no agora (últimos <strong>${nowWin}</strong> min)</div>
+          </div>
+          ${buildTable(rows, "Top portais do circuito (agora)")}
+        `);
+        return;
+      }
+
+      if (key === "total-hoje"){
+        openModal("Total geral hoje", `
+          <div style="display:flex; gap:16px; align-items:center; margin-bottom: 12px;">
+            <div style="font-size:44px; font-weight:950;">${fmt(p.totalToday)}</div>
+            <div style="color:rgba(255,255,255,.65); font-size:12px;">Acumulado do dia (somatório geral SSP)</div>
+          </div>
+          ${buildTable((p.breakdownToday || []).slice(0, 80), "Top portais (hoje)")}
+        `);
+        return;
+      }
+
+      if (key === "total-carnaval"){
+        openModal("Total geral Carnaval 2026", `
+          <div style="display:flex; gap:16px; align-items:center; margin-bottom: 12px;">
+            <div style="font-size:44px; font-weight:950;">${fmt(p.totalCarnaval)}</div>
+            <div style="color:rgba(255,255,255,.65); font-size:12px;">Acumulado do Carnaval 2026 (12–17/02, até o momento)</div>
+          </div>
+          <div style="font-weight:950; margin: 4px 0 10px; color: rgba(255,255,255,.90);">Série diária (total por circuito)</div>
+          <table class="table">
+            <thead>
+              <tr><th>Dia</th><th class="mono">Osmar</th><th class="mono">Dodô</th><th class="mono">Batatinha</th><th class="mono">Total</th></tr>
+            </thead>
+            <tbody>
+              ${(p.dailySeries || []).map(r => `
+                <tr>
+                  <td>${r.date}</td>
+                  <td class="mono">${fmt(r.OSMAR)}</td>
+                  <td class="mono">${fmt(r.DODO)}</td>
+                  <td class="mono">${fmt(r.BATATINHA)}</td>
+                  <td class="mono">${fmt(r.total)}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        `);
+        return;
+      }
+
+      if (key === "portais"){
+        const ps = p.portalsStatus || {};
+        openModal("Portais — Status operacional", `
+          <div style="display:flex; gap:18px; align-items:center; margin-bottom: 12px;">
+            <div style="font-size:34px; font-weight:950; color: var(--tagGreen);">${fmt(ps.active)}</div>
+            <div style="font-size:34px; font-weight:950; color: var(--tagRed);">${fmt(ps.inactive)}</div>
+            <div style="color:rgba(255,255,255,.65); font-size:12px;">Total: <strong>${fmt(ps.total)}</strong> • Regra: ativo se houve leitura recente</div>
+          </div>
+          ${buildTable((p.breakdownNow || []).slice(0, 120), `Top portais (agora • últimos ${nowWin} min)`)}
+        `);
+        return;
+      }
+
+      if (key === "pessoas-por-dia"){
+        openModal("Pessoas por dia (12–17/02/2026)", `
+          <canvas class="chartCanvas" id="popup-daily" width="1100" height="360"></canvas>
+          <div style="margin-top: 12px;">
+            <table class="table">
+              <thead>
+                <tr><th>Dia</th><th class="mono">Osmar</th><th class="mono">Dodô</th><th class="mono">Batatinha</th><th class="mono">Total</th></tr>
+              </thead>
+              <tbody>
+                ${(p.dailySeries || []).map(r => `
+                  <tr>
+                    <td>${r.date}</td>
+                    <td class="mono">${fmt(r.OSMAR)}</td>
+                    <td class="mono">${fmt(r.DODO)}</td>
+                    <td class="mono">${fmt(r.BATATINHA)}</td>
+                    <td class="mono">${fmt(r.total)}</td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          </div>
+        `);
+        // desenha no canvas do popup
+        setTimeout(() => {
+          const canvas = document.getElementById("popup-daily");
+          if (!canvas) return;
+          // reaproveita função usando canvas temporário
+          const saved = document.getElementById("chart-daily");
+          const tmp = saved;
+          // desenha com base no novo canvas
+          const old = document.getElementById("chart-daily");
+          // hack simples: muda id alvo temporariamente
+          const originalId = old.id;
+          old.id = "chart-daily-old";
+          canvas.id = "chart-daily";
+          drawDailyChart(p.dailySeries || []);
+          canvas.id = "popup-daily";
+          old.id = originalId;
+        }, 30);
+        return;
+      }
+
+      if (key === "picos-por-circuito"){
+        openModal("Picos por circuito", `
+          <canvas class="chartCanvas" id="popup-peaks" width="1100" height="320"></canvas>
+          <div style="margin-top: 12px;">
+            <table class="table">
+              <thead><tr><th>Circuito</th><th class="mono">Pico</th><th>Dia</th></tr></thead>
+              <tbody>
+                ${["OSMAR","DODO","BATATINHA"].map(c => {
+                  const pk = (p.peaksByCircuit && p.peaksByCircuit[c]) || {value:0,date:null};
+                  return `<tr><td>${c}</td><td class="mono">${fmt(pk.value)}</td><td>${pk.date || "—"}</td></tr>`;
+                }).join("")}
+              </tbody>
+            </table>
+          </div>
+        `);
+        setTimeout(() => {
+          const canvas = document.getElementById("popup-peaks");
+          if (!canvas) return;
+          const old = document.getElementById("chart-peaks");
+          const originalId = old.id;
+          old.id = "chart-peaks-old";
+          canvas.id = "chart-peaks";
+          drawPeaksChart(p.peaksByCircuit || {});
+          canvas.id = "popup-peaks";
+          old.id = originalId;
+        }, 30);
+        return;
+      }
+
+      if (key === "alertas"){
+        openModal("Alertas — resumo operacional", `
+          <div class="alertsList" style="max-height: 680px;">
+            ${(p.alerts || []).map(a => {
+              const sev = (a.severity || "blue").toLowerCase();
+              const txt = a.text || "";
+              return `<div class="alertItem"><div class="sev ${sev}"></div><div>${txt}</div></div>`;
+            }).join("") || `<div class="alertItem"><div class="sev green"></div><div>Sem alertas relevantes no momento.</div></div>`}
+          </div>
+        `);
+        return;
+      }
+
+      if (key === "mapa"){
+        openModal("Mapa Interativo (SSP)", `
+          <div style="color:rgba(255,255,255,.70); font-size:12px; margin-bottom:10px;">
+            Use o mapa na tela inicial para zoom e hover. Aqui o foco é manter a navegação rápida.
+          </div>
+          <div style="color:rgba(255,255,255,.55); font-size:12px;">
+            (Se você quiser, eu coloco o mapa também dentro do popup — mas isso pesa mais e exige re-render do Leaflet.)
+          </div>
+        `);
+        return;
+      }
+
+      openModal("Detalhes", "<div style='color:rgba(255,255,255,.70)'>Sem popup configurado.</div>");
+    }
+
+    // ======================= CÂMERAS (mantido: endpoint mock) ===================
+    async function loadCameras() {
+      const grid = document.getElementById("camera-zones-grid");
+      if (!grid) return;
+
+      try {
+        const res = await fetch("/api/ssp/cameras");
+        if (!res.ok) throw new Error(`Erro HTTP ${res.status}`);
+
+        const data = await res.json();
+        if (!data.zones || data.zones.length === 0) {
+          grid.innerHTML = "<div class='pad'>Nenhuma câmera encontrada</div>";
+          return;
+        }
+
+        grid.innerHTML = `
+          <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 16px;">
+            ${data.zones.map(zone => `
+              <div class="card" style="padding: 14px;">
+                <div style="font-size:14px; font-weight:950; margin-bottom: 12px;">${zone.zone_name}</div>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                  ${zone.cameras.map(cam => `
+                    <div style="border-radius: 14px; overflow:hidden; border: 1px solid rgba(255,255,255,.12); background: rgba(0,0,0,.25);">
+                      <img src="${cam.last_image || '/static/no-image.png'}" alt="${cam.camera_name}" style="width:100%; height:140px; object-fit:cover; display:block;">
+                      <div style="padding: 8px 10px;">
+                        <div style="font-size:12px; font-weight:900;">${cam.camera_name}</div>
+                        <div style="font-size:11px; color: rgba(255,255,255,.55);">Último frame: ${cam.last_update || '—'}</div>
+                      </div>
+                    </div>
+                  `).join("")}
+                </div>
+              </div>
+            `).join("")}
+          </div>
+        `;
+      } catch (err) {
+        grid.innerHTML = `<div class='pad'>Erro ao carregar câmeras: ${String(err)}</div>`;
+      }
+    }
+  </script>
+</body>
+</html>
